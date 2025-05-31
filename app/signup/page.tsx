@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -19,8 +19,13 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const setUser = useAuthStore((state) => state.setUser);
-  const setUsername = useAuthStore((state) => state.setUsername);
+  const { user, setUser, setUsername } = useAuthStore();
+
+  useEffect(() => {
+    if (user) {
+      router.push('/home');
+    }
+  }, [user, router]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,4 +103,3 @@ export default function Signup() {
       </motion.div>
     </div>
   );
-}
