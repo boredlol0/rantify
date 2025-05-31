@@ -103,3 +103,4 @@ export default function Signup() {
       </motion.div>
     </div>
   );
+}
