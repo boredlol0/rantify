@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { MessageSquarePlus, Users, LogIn } from 'lucide-react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -19,10 +20,12 @@ export default function Home() {
           </motion.h1>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <Button variant="outline">
-              <LogIn className="mr-2 h-4 w-4" />
-              Login
-            </Button>
+            <Link href="/login">
+              <Button variant="outline">
+                <LogIn className="mr-2 h-4 w-4" />
+                Login
+              </Button>
+            </Link>
           </div>
         </div>
       </header>
@@ -43,14 +46,18 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-20">
-            <Button size="lg" className="text-lg">
-              <MessageSquarePlus className="mr-2 h-5 w-5" />
-              Post a Rant
-            </Button>
-            <Button size="lg" variant="outline" className="text-lg">
-              <Users className="mr-2 h-5 w-5" />
-              View Rants
-            </Button>
+            <Link href="/signup">
+              <Button size="lg" className="text-lg w-full sm:w-auto">
+                <MessageSquarePlus className="mr-2 h-5 w-5" />
+                Post a Rant
+              </Button>
+            </Link>
+            <Link href="/signup">
+              <Button size="lg" variant="outline" className="text-lg w-full sm:w-auto">
+                <Users className="mr-2 h-5 w-5" />
+                View Rants
+              </Button>
+            </Link>
           </div>
 
           <motion.div 
