@@ -43,12 +43,7 @@ export default function RantPage() {
       try {
         const { data: rantData, error } = await supabase
           .from('rants')
-          .select(`
-            *,
-            owner:owner_id (
-              user_metadata
-            )
-          `)
+          .select("*")
           .eq('id', rantId)
           .single();
 
