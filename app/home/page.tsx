@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { AudioPlayer } from '@/components/ui/audio-player';
+import Link from 'next/link';
 
 interface Rant {
   id: string;
@@ -446,7 +447,12 @@ export default function HomePage() {
                     className="bg-background/50 backdrop-blur-sm rounded-lg p-4 space-y-2 relative group"
                   >
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold">{rant.title}</h3>
+                      <Link
+                        href={`/rant/${rant.id}`}
+                        className="font-semibold hover:text-primary transition-colors"
+                      >
+                        {rant.title}
+                      </Link>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Eye className="h-4 w-4" />
