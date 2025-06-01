@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2 } from 'lucide-react';
+import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
@@ -32,15 +32,28 @@ export default function HomePage() {
   const [transcript, setTranscript] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(180); // 3 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(180);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [expandedRants, setExpandedRants] = useState<Set<string>>(new Set());
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+
+  const toggleTranscript = (rantId: string) => {
+    setExpandedRants(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(rantId)) {
+        newSet.delete(rantId);
+      } else {
+        newSet.add(rantId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -444,41 +457,77 @@ export default function HomePage() {
                         </span>
                       </div>
                     </div>
-                    <p className="text-muted-foreground line-clamp-2">
-                      {rant.transcript}
-                    </p>
+
                     {rant.audio_url && (
                       <AudioPlayer src={rant.audio_url} className="mt-4" />
                     )}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/70" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete your rant
-                            and remove the data from our servers.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDeleteRant(rant.id, rant.audio_url)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+
+                    <div className="flex justify-between items-center mt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleTranscript(rant.id)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {expandedRants.has(rant.id) ? (
+                          <>
+                            <ChevronUp className="h-4 w-4 mr-1" />
+                            Hide Transcript
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-1" />
+                            Show Transcript
+                          </>
+                        )}
+                      </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                           >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/70" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete your rant
+                              and remove the data from our servers.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteRant(rant.id, rant.audio_url)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+
+                    <AnimatePresence>
+                      {expandedRants.has(rant.id) && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mt-4 p-4 bg-muted/20 rounded-lg">
+                            {rant.transcript}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 ))
               )}
