@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff } from 'lucide-react';
+import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Play, Pause } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
@@ -26,13 +26,16 @@ export default function HomePage() {
   const [greeting, setGreeting] = useState('');
   const [rants, setRants] = useState<Rant[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(180); // 3 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(180);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [lastTranscriptUpdate, setLastTranscriptUpdate] = useState(Date.now());
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -72,7 +75,7 @@ export default function HomePage() {
   }, [router]);
 
   useEffect(() => {
-    if (isRecording && timeLeft > 0) {
+    if (isRecording && !isPaused && timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
@@ -89,7 +92,29 @@ export default function HomePage() {
         clearInterval(timerRef.current);
       }
     };
-  }, [isRecording, timeLeft]);
+  }, [isRecording, isPaused, timeLeft]);
+
+  // Monitor silence
+  useEffect(() => {
+    if (isRecording && !isPaused) {
+      silenceTimerRef.current = setInterval(() => {
+        const timeSinceLastTranscript = Date.now() - lastTranscriptUpdate;
+        if (timeSinceLastTranscript > 5000) { // 5 seconds
+          pauseRecording();
+          toast({
+            title: "Recording Paused",
+            description: "No speech detected for 5 seconds. Click resume to continue recording.",
+          });
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (silenceTimerRef.current) {
+        clearInterval(silenceTimerRef.current);
+      }
+    };
+  }, [isRecording, isPaused, lastTranscriptUpdate]);
 
   const startRecording = () => {
     if (!('webkitSpeechRecognition' in window)) {
@@ -112,11 +137,31 @@ export default function HomePage() {
         finalTranscript += event.results[i][0].transcript;
       }
       setTranscript(finalTranscript);
+      setLastTranscriptUpdate(Date.now());
     };
 
     recognitionRef.current.start();
     setIsRecording(true);
+    setIsPaused(false);
     setTimeLeft(180);
+  };
+
+  const pauseRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsPaused(true);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+  };
+
+  const resumeRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.start();
+    }
+    setIsPaused(false);
+    setLastTranscriptUpdate(Date.now());
   };
 
   const stopRecording = () => {
@@ -126,7 +171,11 @@ export default function HomePage() {
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
+    if (silenceTimerRef.current) {
+      clearInterval(silenceTimerRef.current);
+    }
     setIsRecording(false);
+    setIsPaused(false);
   };
 
   const handleSubmitRant = async () => {
@@ -239,18 +288,46 @@ export default function HomePage() {
               </DialogHeader>
               <div className="space-y-6">
                 <div className="flex flex-col items-center gap-4">
-                  <Button
-                    variant={isRecording ? "destructive" : "default"}
-                    size="lg"
-                    className="rounded-full w-16 h-16"
-                    onClick={isRecording ? stopRecording : startRecording}
-                  >
-                    {isRecording ? (
-                      <MicOff className="h-8 w-8" color="black"/>
-                    ) : (
+                  {!isRecording ? (
+                    <Button
+                      variant="default"
+                      size="lg"
+                      className="rounded-full w-16 h-16"
+                      onClick={startRecording}
+                    >
                       <Mic className="h-8 w-8" />
-                    )}
-                  </Button>
+                    </Button>
+                  ) : (
+                    <div className="flex gap-4">
+                      <Button
+                        variant="destructive"
+                        size="lg"
+                        className="rounded-full w-16 h-16"
+                        onClick={stopRecording}
+                      >
+                        <MicOff className="h-8 w-8" />
+                      </Button>
+                      {isPaused ? (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="rounded-full w-16 h-16"
+                          onClick={resumeRecording}
+                        >
+                          <Play className="h-8 w-8" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="rounded-full w-16 h-16"
+                          onClick={pauseRecording}
+                        >
+                          <Pause className="h-8 w-8" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   {isRecording && (
                     <div className="text-sm text-muted-foreground">
                       Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
