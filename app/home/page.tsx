@@ -256,7 +256,8 @@ export default function HomePage() {
         is_private: isPrivate,
         anonymous: !isPrivate ? isAnonymous : false,
         audio_url: publicUrl,
-        views: 0
+        views: 0,
+        owner_username: username
       });
 
       if (rantError) {
