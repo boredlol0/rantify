@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
@@ -22,6 +22,7 @@ interface Rant {
   anonymous: boolean;
   created_at: string;
   audio_url: string | null;
+  views: number;
 }
 
 export default function HomePage() {
@@ -253,7 +254,8 @@ export default function HomePage() {
         transcript,
         is_private: isPrivate,
         anonymous: !isPrivate ? isAnonymous : false,
-        audio_url: publicUrl
+        audio_url: publicUrl,
+        views: 0
       });
 
       if (rantError) {
@@ -446,6 +448,10 @@ export default function HomePage() {
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold">{rant.title}</h3>
                       <div className="flex items-center gap-2 text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Eye className="h-4 w-4" />
+                          <span className="text-sm">{rant.views || 0}</span>
+                        </div>
                         {rant.is_private ? (
                           <Lock className="h-4 w-4" />
                         ) : (
