@@ -4,8 +4,11 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { MessageSquarePlus, Users, LogIn } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const router = useRouter();
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-accent">
       <header className="fixed w-full top-0 z-50 backdrop-blur-sm border-b">
@@ -19,9 +22,12 @@ export default function Home() {
           </motion.h1>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => router.push('/login')}>
               <LogIn className="mr-2 h-4 w-4" />
               Login
+            </Button>
+            <Button onClick={() => router.push('/signup')}>
+              Sign Up
             </Button>
           </div>
         </div>
