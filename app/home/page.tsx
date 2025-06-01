@@ -19,6 +19,7 @@ interface Rant {
   is_private: boolean;
   anonymous: boolean;
   created_at: string;
+  audio_url: string | null;
 }
 
 export default function HomePage() {
@@ -31,7 +32,10 @@ export default function HomePage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [timeLeft, setTimeLeft] = useState(180); // 3 minutes in seconds
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const { toast } = useToast();
@@ -91,37 +95,64 @@ export default function HomePage() {
     };
   }, [isRecording, timeLeft]);
 
-  const startRecording = () => {
-    if (!('webkitSpeechRecognition' in window)) {
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        setAudioBlob(audioBlob);
+      };
+
+      mediaRecorderRef.current.start();
+
+      if (!('webkitSpeechRecognition' in window)) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Speech recognition is not supported in your browser."
+        });
+        return;
+      }
+
+      const SpeechRecognition = window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+
+      recognitionRef.current.onresult = (event: any) => {
+        let finalTranscript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+        setTranscript(finalTranscript);
+      };
+
+      recognitionRef.current.start();
+      setIsRecording(true);
+      setTimeLeft(180);
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Speech recognition is not supported in your browser."
+        description: "Failed to start recording. Please check your microphone permissions."
       });
-      return;
     }
-
-    const SpeechRecognition = window.webkitSpeechRecognition;
-    recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = true;
-    recognitionRef.current.interimResults = true;
-
-    recognitionRef.current.onresult = (event: any) => {
-      let finalTranscript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        finalTranscript += event.results[i][0].transcript;
-      }
-      setTranscript(finalTranscript);
-    };
-
-    recognitionRef.current.start();
-    setIsRecording(true);
-    setTimeLeft(180);
   };
 
   const stopRecording = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -130,7 +161,7 @@ export default function HomePage() {
   };
 
   const handleSubmitRant = async () => {
-    if (!transcript.trim()) {
+    if (!transcript.trim() || !audioBlob) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -142,46 +173,71 @@ export default function HomePage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const title = transcript.split(' ').slice(0, 5).join(' ') + '...';
-    
-    const { error } = await supabase.from('rants').insert({
-      owner_id: user.id,
-      title,
-      transcript,
-      is_private: isPrivate,
-      anonymous: !isPrivate ? isAnonymous : false,
-      audio_url: null
-    });
+    try {
+      // Generate a unique ID for the rant
+      const rantId = crypto.randomUUID();
+      
+      // Upload audio file to Supabase Storage
+      const audioPath = `audio/${user.id}/${rantId}.wav`;
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('rants')
+        .upload(audioPath, audioBlob);
 
-    if (error) {
+      if (uploadError) {
+        throw new Error('Failed to upload audio file');
+      }
+
+      // Get the public URL for the uploaded audio
+      const { data: { publicUrl } } = supabase.storage
+        .from('rants')
+        .getPublicUrl(audioPath);
+
+      const title = transcript.split(' ').slice(0, 5).join(' ') + '...';
+      
+      const { error: rantError } = await supabase.from('rants').insert({
+        id: rantId,
+        owner_id: user.id,
+        title,
+        transcript,
+        is_private: isPrivate,
+        anonymous: !isPrivate ? isAnonymous : false,
+        audio_url: publicUrl
+      });
+
+      if (rantError) {
+        // If rant creation fails, delete the uploaded audio
+        await supabase.storage.from('rants').remove([audioPath]);
+        throw new Error('Failed to save rant');
+      }
+
+      // Refresh rants list
+      const { data: userRants } = await supabase
+        .from('rants')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (userRants) {
+        setRants(userRants);
+      }
+
+      setIsDialogOpen(false);
+      setTranscript('');
+      setIsPrivate(false);
+      setIsAnonymous(false);
+      setAudioBlob(null);
+      
+      toast({
+        title: "Success",
+        description: "Your rant has been posted successfully!"
+      });
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save your rant. Please try again."
+        description: error.message || "Failed to save your rant. Please try again."
       });
-      return;
     }
-
-    // Refresh rants list
-    const { data: userRants } = await supabase
-      .from('rants')
-      .select('*')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (userRants) {
-      setRants(userRants);
-    }
-
-    setIsDialogOpen(false);
-    setTranscript('');
-    setIsPrivate(false);
-    setIsAnonymous(false);
-    
-    toast({
-      title: "Success",
-      description: "Your rant has been posted successfully!"
-    });
   };
 
   const handleDialogChange = (open: boolean) => {
@@ -192,6 +248,7 @@ export default function HomePage() {
       setIsPrivate(false);
       setIsAnonymous(false);
       setTimeLeft(180);
+      setAudioBlob(null);
     }
   };
 
@@ -246,7 +303,7 @@ export default function HomePage() {
                     onClick={isRecording ? stopRecording : startRecording}
                   >
                     {isRecording ? (
-                      <MicOff className="h-8 w-8" color="black"/>
+                      <MicOff className="h-8 w-8" />
                     ) : (
                       <Mic className="h-8 w-8" />
                     )}
@@ -353,6 +410,12 @@ export default function HomePage() {
                     <p className="text-muted-foreground line-clamp-2">
                       {rant.transcript}
                     </p>
+                    {rant.audio_url && (
+                      <audio controls className="w-full mt-2">
+                        <source src={rant.audio_url} type="audio/wav" />
+                        Your browser does not support the audio element.
+                      </audio>
+                    )}
                   </motion.div>
                 ))
               )}
