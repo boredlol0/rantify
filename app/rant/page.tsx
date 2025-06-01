@@ -30,6 +30,7 @@ export default function RantPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
+  const [viewIncremented, setViewIncremented] = useState(false);
 
   useEffect(() => {
     const fetchRant = async () => {
@@ -59,16 +60,24 @@ export default function RantPage() {
           .eq('id', rantData.owner_id)
           .single();
 
-        if (!userError && userData) {
-          setRant({
-            ...rantData,
-            owner_username: userData.raw_user_meta_data.username
-          });
-        } else {
-          setRant({
-            ...rantData,
-            owner_username: null
-          });
+        const fullRant = {
+          ...rantData,
+          owner_username: userData?.raw_user_meta_data?.username || null
+        };
+        
+        setRant(fullRant);
+
+        // Increment view count if not already done
+        if (!viewIncremented) {
+          const { error: updateError } = await supabase
+            .from('rants')
+            .update({ views: (fullRant.views || 0) + 1 })
+            .eq('id', rantId);
+
+          if (!updateError) {
+            setViewIncremented(true);
+            setRant(prev => prev ? { ...prev, views: (prev.views || 0) + 1 } : null);
+          }
         }
       } catch (error) {
         console.error('Error fetching rant:', error);
@@ -79,7 +88,7 @@ export default function RantPage() {
     };
 
     fetchRant();
-  }, [rantId]);
+  }, [rantId, viewIncremented]);
 
   if (loading) {
     return (
