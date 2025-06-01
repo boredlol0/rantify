@@ -246,7 +246,7 @@ export default function HomePage() {
                     onClick={isRecording ? stopRecording : startRecording}
                   >
                     {isRecording ? (
-                      <MicOff className="h-8 w-8" />
+                      <MicOff className="h-8 w-8" color="black"/>
                     ) : (
                       <Mic className="h-8 w-8" />
                     )}
