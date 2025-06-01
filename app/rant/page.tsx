@@ -18,11 +18,8 @@ interface Rant {
   created_at: string;
   audio_url: string | null;
   views: number;
-  owner: {
-    user_metadata: {
-      username: string;
-    };
-  };
+  owner_id: string;
+  owner_username: string | null;
 }
 
 export default function RantPage() {
@@ -41,16 +38,35 @@ export default function RantPage() {
       }
 
       try {
-        const { data: rantData, error } = await supabase
+        // First, fetch the rant data
+        const { data: rantData, error: rantError } = await supabase
           .from('rants')
-          .select("*")
+          .select('*')
           .eq('id', rantId)
           .single();
 
-        if (error || !rantData) {
+        if (rantError || !rantData) {
           setNotFound(true);
+          return;
+        }
+
+        // Then, fetch the user data
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('raw_user_meta_data')
+          .eq('id', rantData.owner_id)
+          .single();
+
+        if (!userError && userData) {
+          setRant({
+            ...rantData,
+            owner_username: userData.raw_user_meta_data.username
+          });
         } else {
-          setRant(rantData);
+          setRant({
+            ...rantData,
+            owner_username: null
+          });
         }
       } catch (error) {
         console.error('Error fetching rant:', error);
@@ -114,7 +130,7 @@ export default function RantPage() {
               <div className="flex items-center gap-2">
                 <span>Posted by</span>
                 <span className="font-medium">
-                  {rant.anonymous ? 'Anonymous' : rant.owner.user_metadata.username}
+                  {rant.anonymous ? 'Anonymous' : (rant.owner_username || 'Unknown User')}
                 </span>
               </div>
               <span>{format(new Date(rant.created_at), 'PPP')}</span>
