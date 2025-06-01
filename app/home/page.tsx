@@ -12,6 +12,7 @@ import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2 } fro
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { AudioPlayer } from '@/components/ui/audio-player';
 
 interface Rant {
   id: string;
@@ -163,7 +164,6 @@ export default function HomePage() {
 
   const handleDeleteRant = async (rantId: string, audioUrl: string | null) => {
     try {
-      // If there's an audio file, delete it from storage
       if (audioUrl) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -178,7 +178,6 @@ export default function HomePage() {
         }
       }
 
-      // Delete the rant from the database
       const { error: deleteRantError } = await supabase
         .from('rants')
         .delete()
@@ -188,7 +187,6 @@ export default function HomePage() {
         throw new Error('Failed to delete rant');
       }
 
-      // Update the local state
       setRants(rants.filter(rant => rant.id !== rantId));
 
       toast({
@@ -218,12 +216,10 @@ export default function HomePage() {
     if (!user) return;
 
     try {
-      // Generate a unique ID for the rant
       const rantId = crypto.randomUUID();
       
-      // Upload audio file to Supabase Storage
       const audioPath = `audio/${user.id}/${rantId}.wav`;
-      const { error: uploadError, data: uploadData } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('rants')
         .upload(audioPath, audioBlob);
 
@@ -231,7 +227,6 @@ export default function HomePage() {
         throw new Error('Failed to upload audio file');
       }
 
-      // Get the public URL for the uploaded audio
       const { data: { publicUrl } } = supabase.storage
         .from('rants')
         .getPublicUrl(audioPath);
@@ -249,12 +244,10 @@ export default function HomePage() {
       });
 
       if (rantError) {
-        // If rant creation fails, delete the uploaded audio
         await supabase.storage.from('rants').remove([audioPath]);
         throw new Error('Failed to save rant');
       }
 
-      // Refresh rants list
       const { data: userRants } = await supabase
         .from('rants')
         .select('*')
@@ -455,10 +448,7 @@ export default function HomePage() {
                       {rant.transcript}
                     </p>
                     {rant.audio_url && (
-                      <audio controls className="w-full mt-2">
-                        <source src={rant.audio_url} type="audio/wav" />
-                        Your browser does not support the audio element.
-                      </audio>
+                      <AudioPlayer src={rant.audio_url} className="mt-4" />
                     )}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
