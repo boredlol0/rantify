@@ -9,6 +9,7 @@ export async function middleware(req: NextRequest) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  console.log(session)
 
   // Protect /home route
   if (req.nextUrl.pathname.startsWith('/home')) {
