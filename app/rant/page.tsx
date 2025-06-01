@@ -5,9 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lock, Globe, Eye } from 'lucide-react';
+import { Lock, Globe, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { AudioPlayer } from '@/components/ui/audio-player';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Rant {
   id: string;
@@ -28,6 +29,7 @@ export default function RantPage() {
   const [rant, setRant] = useState<Rant | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
 
   useEffect(() => {
     const fetchRant = async () => {
@@ -140,8 +142,42 @@ export default function RantPage() {
             {rant.audio_url && (
               <AudioPlayer src={rant.audio_url} className="w-full" />
             )}
-            <div className="bg-muted/20 rounded-lg p-6">
-              <p className="text-lg leading-relaxed">{rant.transcript}</p>
+            
+            <div className="space-y-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isTranscriptExpanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Hide Transcript
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show Transcript
+                  </>
+                )}
+              </Button>
+
+              <AnimatePresence>
+                {isTranscriptExpanded && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="bg-muted/20 rounded-lg p-6">
+                      <p className="text-lg leading-relaxed">{rant.transcript}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </CardContent>
         </Card>
