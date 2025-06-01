@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff } from 'lucide-react';
+import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
@@ -158,6 +159,49 @@ export default function HomePage() {
       clearInterval(timerRef.current);
     }
     setIsRecording(false);
+  };
+
+  const handleDeleteRant = async (rantId: string, audioUrl: string | null) => {
+    try {
+      // If there's an audio file, delete it from storage
+      if (audioUrl) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const audioPath = `audio/${user.id}/${rantId}.wav`;
+        const { error: deleteStorageError } = await supabase.storage
+          .from('rants')
+          .remove([audioPath]);
+
+        if (deleteStorageError) {
+          throw new Error('Failed to delete audio file');
+        }
+      }
+
+      // Delete the rant from the database
+      const { error: deleteRantError } = await supabase
+        .from('rants')
+        .delete()
+        .eq('id', rantId);
+
+      if (deleteRantError) {
+        throw new Error('Failed to delete rant');
+      }
+
+      // Update the local state
+      setRants(rants.filter(rant => rant.id !== rantId));
+
+      toast({
+        title: "Success",
+        description: "Rant deleted successfully"
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete rant"
+      });
+    }
   };
 
   const handleSubmitRant = async () => {
@@ -391,7 +435,7 @@ export default function HomePage() {
                     key={rant.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="bg-background/50 backdrop-blur-sm rounded-lg p-4 space-y-2"
+                    className="bg-background/50 backdrop-blur-sm rounded-lg p-4 space-y-2 relative group"
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold">{rant.title}</h3>
@@ -416,6 +460,35 @@ export default function HomePage() {
                         Your browser does not support the audio element.
                       </audio>
                     )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/70" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete your rant
+                            and remove the data from our servers.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteRant(rant.id, rant.audio_url)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </motion.div>
                 ))
               )}
