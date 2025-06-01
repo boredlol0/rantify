@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lock, Globe, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users } from 'lucide-react';
 import { AudioPlayer } from '@/components/ui/audio-player';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,6 +24,7 @@ interface Rant {
 }
 
 export default function RantPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const rantId = searchParams.get('id');
   const [rant, setRant] = useState<Rant | null>(null);
@@ -90,118 +91,152 @@ export default function RantPage() {
     fetchRant();
   }, [rantId, viewIncremented]);
 
+  const NavButton = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
+    <motion.button
+      onClick={onClick}
+      className="flex items-center gap-2 px-6 py-2 rounded-full bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-colors"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <Icon className="h-5 w-5" />
+      <span>{label}</span>
+    </motion.button>
+  );
+
+  const navbar = (
+    <motion.nav
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="fixed top-0 left-0 right-0 z-50 py-4 backdrop-blur-md bg-background/50 border-b border-border/50"
+    >
+      <div className="container mx-auto flex justify-center gap-4">
+        <NavButton icon={Home} label="Home" onClick={() => router.push('/home')} />
+        <NavButton icon={Users} label="Rants" onClick={() => router.push('/rants')} />
+      </div>
+    </motion.nav>
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-accent p-4">
-        <div className="container mx-auto max-w-4xl">
-          <Card className="border-none bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-8">
-              <div className="animate-pulse">Loading...</div>
-            </CardContent>
-          </Card>
+      <>
+        {navbar}
+        <div className="min-h-screen bg-gradient-to-b from-background to-accent p-4 pt-24">
+          <div className="container mx-auto max-w-4xl">
+            <Card className="border-none bg-card/50 backdrop-blur-sm">
+              <CardContent className="p-8">
+                <div className="animate-pulse">Loading...</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (notFound || !rant) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-accent p-4">
-        <div className="container mx-auto max-w-4xl">
-          <Card className="border-none bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-8">
-              <div className="text-center text-muted-foreground">Rant not found</div>
-            </CardContent>
-          </Card>
+      <>
+        {navbar}
+        <div className="min-h-screen bg-gradient-to-b from-background to-accent p-4 pt-24">
+          <div className="container mx-auto max-w-4xl">
+            <Card className="border-none bg-card/50 backdrop-blur-sm">
+              <CardContent className="p-8">
+                <div className="text-center text-muted-foreground">Rant not found</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-accent p-4">
-      <div className="container mx-auto max-w-4xl space-y-8">
-        <Card className="border-none bg-card/50 backdrop-blur-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between mb-4">
-              <CardTitle className="text-3xl font-bold">{rant.title}</CardTitle>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Eye className="h-5 w-5" />
-                  <span>{rant.views || 0}</span>
+    <>
+      {navbar}
+      <div className="min-h-screen bg-gradient-to-b from-background to-accent p-4 pt-24">
+        <div className="container mx-auto max-w-4xl space-y-8">
+          <Card className="border-none bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between mb-4">
+                <CardTitle className="text-3xl font-bold">{rant.title}</CardTitle>
+                <div className="flex items-center gap-3 text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Eye className="h-5 w-5" />
+                    <span>{rant.views || 0}</span>
+                  </div>
+                  {rant.is_private ? (
+                    <Lock className="h-5 w-5" />
+                  ) : (
+                    <Globe className="h-5 w-5" />
+                  )}
                 </div>
-                {rant.is_private ? (
-                  <Lock className="h-5 w-5" />
-                ) : (
-                  <Globe className="h-5 w-5" />
-                )}
               </div>
-            </div>
-            <div className="flex items-center justify-between text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <span>Posted by</span>
-                <span className="font-medium">
-                  {rant.anonymous ? 'Anonymous' : (rant.owner_username || 'Unknown User')}
-                </span>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span>Posted by</span>
+                  <span className="font-medium">
+                    {rant.anonymous ? 'Anonymous' : (rant.owner_username || 'Unknown User')}
+                  </span>
+                </div>
+                <span>{format(new Date(rant.created_at), 'PPP')}</span>
               </div>
-              <span>{format(new Date(rant.created_at), 'PPP')}</span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {rant.audio_url && (
-              <AudioPlayer src={rant.audio_url} className="w-full" />
-            )}
-            
-            <div className="space-y-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {isTranscriptExpanded ? (
-                  <>
-                    <ChevronUp className="h-4 w-4 mr-1" />
-                    Hide Transcript
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-4 w-4 mr-1" />
-                    Show Transcript
-                  </>
-                )}
-              </Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {rant.audio_url && (
+                <AudioPlayer src={rant.audio_url} className="w-full" />
+              )}
+              
+              <div className="space-y-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {isTranscriptExpanded ? (
+                    <>
+                      <ChevronUp className="h-4 w-4 mr-1" />
+                      Hide Transcript
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4 mr-1" />
+                      Show Transcript
+                    </>
+                  )}
+                </Button>
 
-              <AnimatePresence>
-                {isTranscriptExpanded && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="bg-muted/20 rounded-lg p-6">
-                      <p className="text-lg leading-relaxed">{rant.transcript}</p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </CardContent>
-        </Card>
+                <AnimatePresence>
+                  {isTranscriptExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="bg-muted/20 rounded-lg p-6">
+                        <p className="text-lg leading-relaxed">{rant.transcript}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card className="border-none bg-card/50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle>Comments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center text-muted-foreground py-8">
-              No comments yet
-            </div>
-          </CardContent>
-        </Card>
+          <Card className="border-none bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle>Comments</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center text-muted-foreground py-8">
+                No comments yet
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
