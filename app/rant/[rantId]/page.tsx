@@ -25,6 +25,18 @@ interface Rant {
   };
 }
 
+// This function will be called at build time to generate static paths
+export async function generateStaticParams() {
+  const { data: rants } = await supabase
+    .from('rants')
+    .select('id')
+    .eq('is_private', false);
+
+  return (rants || []).map((rant) => ({
+    rantId: rant.id,
+  }));
+}
+
 export default function RantPage() {
   const { rantId } = useParams();
   const [rant, setRant] = useState<Rant | null>(null);
@@ -47,7 +59,7 @@ export default function RantPage() {
         if (error) throw error;
         setRant(rantData);
       } catch (error) {
-        console.error('Error fetching rant:', error);
+        console.error('Error fetching rants:', error);
       } finally {
         setLoading(false);
       }
