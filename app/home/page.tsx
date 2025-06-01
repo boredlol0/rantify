@@ -448,7 +448,7 @@ export default function HomePage() {
                   >
                     <div className="flex items-center justify-between">
                       <Link
-                        href={`/rant/${rant.id}`}
+                        href={`/rant?id=${rant.id}`}
                         className="font-semibold hover:text-primary transition-colors"
                       >
                         {rant.title}
@@ -549,4 +549,3 @@ export default function HomePage() {
       </div>
     </div>
   );
-}
