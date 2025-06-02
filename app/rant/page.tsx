@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { format } from 'date-fns';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users, Heart, Send, Reply } from 'lucide-react';
@@ -53,9 +53,8 @@ export default function RantPage() {
   const [newComment, setNewComment] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [replyText, setReplyText] = useState('');
   const [username, setUsername] = useState<string | null>(null);
-  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -88,6 +87,16 @@ export default function RantPage() {
           return;
         }
 
+        // const { data: userData, error: userError } = await supabase
+        //   .from('users')
+        //   .select('raw_user_meta_data')
+        //   .eq('id', rantData.owner_id)
+        //   .single();
+
+        // const fullRant = {
+        //   ...rantData,
+        //   owner_username: userData?.raw_user_meta_data?.username || "Unkown"
+        // };
         const fullRant = rantData;
         
         setRant(fullRant);
@@ -203,8 +212,7 @@ export default function RantPage() {
   };
 
   const handlePostReply = async (parentCommentId: string) => {
-    const reply = replyText[parentCommentId];
-    if (!reply?.trim()) return;
+    if (!replyText.trim()) return;
 
     if (!username) {
       toast({
@@ -217,14 +225,14 @@ export default function RantPage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const { data: replyData, error } = await supabase
+      const { data: reply, error } = await supabase
         .from('comments')
         .insert({
           rant_id: rantId,
           user_id: user?.id,
           username,
           parent_comment_id: parentCommentId,
-          text: reply,
+          text: replyText,
           is_anonymous: isAnonymous
         })
         .select()
@@ -232,7 +240,7 @@ export default function RantPage() {
 
       if (error) throw error;
 
-      setReplyText(prev => ({ ...prev, [parentCommentId]: '' }));
+      setReplyText('');
       setReplyingTo(null);
       setIsAnonymous(false);
       await fetchComments();
@@ -297,81 +305,71 @@ export default function RantPage() {
     }
   };
 
-  const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
-    const handleReplyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setReplyText(prev => ({
-        ...prev,
-        [comment.id]: e.target.value
-      }));
-    };
-
-    return (
-      <div className={`pl-${level * 4} mt-4`}>
-        <div className="bg-card/30 rounded-lg p-4">
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <span className="font-medium">
-                {comment.is_anonymous ? 'Anonymous' : comment.username}
-              </span>
-              <span className="text-muted-foreground text-sm ml-2">
-                {format(new Date(comment.created_at), 'PPp')}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleToggleLike(comment.id, comment.likes, comment.liked_by_user)}
-              className={comment.liked_by_user ? 'text-red-500' : ''}
-            >
-              <Heart className={`h-4 w-4 mr-1 ${comment.liked_by_user ? 'fill-current' : ''}`} />
-              {comment.likes}
-            </Button>
+  const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => (
+    <div className={`pl-${level * 4} mt-4`}>
+      <div className="bg-card/30 rounded-lg p-4">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <span className="font-medium">
+              {comment.is_anonymous ? 'Anonymous' : comment.username}
+            </span>
+            <span className="text-muted-foreground text-sm ml-2">
+              {format(new Date(comment.created_at), 'PPp')}
+            </span>
           </div>
-          <p className="text-foreground/90 mb-2">{comment.text}</p>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-            >
-              <Reply className="h-4 w-4 mr-1" />
-              Reply
-            </Button>
-          </div>
-          
-          {replyingTo === comment.id && (
-            <div className="mt-4 space-y-4">
-              <Textarea
-                value={replyText[comment.id] || ''}
-                onChange={handleReplyChange}
-                placeholder="Write your reply..."
-                className="min-h-[100px]"
-                ref={replyTextareaRef}
-                autoFocus
-              />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={isAnonymous}
-                    onCheckedChange={setIsAnonymous}
-                  />
-                  <span className="text-sm">Post anonymously</span>
-                </div>
-                <Button onClick={() => handlePostReply(comment.id)}>
-                  <Send className="h-4 w-4 mr-2" />
-                  Post Reply
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {comment.replies && comment.replies.map(reply => (
-            <CommentComponent key={reply.id} comment={reply} level={level + 1} />
-          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleToggleLike(comment.id, comment.likes, comment.liked_by_user)}
+            className={comment.liked_by_user ? 'text-red-500' : ''}
+          >
+            <Heart className={`h-4 w-4 mr-1 ${comment.liked_by_user ? 'fill-current' : ''}`} />
+            {comment.likes}
+          </Button>
         </div>
+        <p className="text-foreground/90 mb-2">{comment.text}</p>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+          >
+            <Reply className="h-4 w-4 mr-1" />
+            Reply
+          </Button>
+        </div>
+        
+        {replyingTo === comment.id && (
+          <div className="mt-4 space-y-4">
+            <Textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Write your reply..."
+              className="min-h-[100px]"
+              name="Reply"
+            />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={isAnonymous}
+                  onCheckedChange={setIsAnonymous}
+                />
+                <span className="text-sm">Post anonymously</span>
+              </div>
+              <Button onClick={() => handlePostReply(comment.id)}>
+                <Send className="h-4 w-4 mr-2" />
+                Post Reply
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {comment.replies && comment.replies.map(reply => (
+          <CommentComponent key={reply.id} comment={reply} level={level + 1} />
+        ))}
       </div>
-    );
-  };
+    </div>
+  );
 
   const NavButton = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
     <motion.button
