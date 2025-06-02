@@ -95,7 +95,7 @@ export default function RantPage() {
 
         const fullRant = {
           ...rantData,
-          owner_username: userData?.raw_user_meta_data?.username || null
+          owner_username: userData?.raw_user_meta_data?.username || "Unkown"
         };
         
         setRant(fullRant);
