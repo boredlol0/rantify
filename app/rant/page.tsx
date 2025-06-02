@@ -5,10 +5,13 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users } from 'lucide-react';
+import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users, Heart, Send, Reply } from 'lucide-react';
 import { AudioPlayer } from '@/components/ui/audio-player';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
 
 interface Rant {
   id: string;
@@ -23,6 +26,20 @@ interface Rant {
   owner_username: string | null;
 }
 
+interface Comment {
+  id: string;
+  rant_id: string;
+  user_id: string;
+  username: string;
+  parent_comment_id: string | null;
+  text: string;
+  is_anonymous: boolean;
+  created_at: string;
+  likes: number;
+  liked_by_user: boolean;
+  replies?: Comment[];
+}
+
 export default function RantPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,6 +49,12 @@ export default function RantPage() {
   const [notFound, setNotFound] = useState(false);
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
   const [viewIncremented, setViewIncremented] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchRant = async () => {
@@ -42,7 +65,6 @@ export default function RantPage() {
       }
 
       try {
-        // First, fetch the rant data
         const { data: rantData, error: rantError } = await supabase
           .from('rants')
           .select('*')
@@ -54,7 +76,6 @@ export default function RantPage() {
           return;
         }
 
-        // Then, fetch the user data
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('raw_user_meta_data')
@@ -68,7 +89,6 @@ export default function RantPage() {
         
         setRant(fullRant);
 
-        // Increment view count if not already done
         if (!viewIncremented) {
           const { error: updateError } = await supabase
             .from('rants')
@@ -80,6 +100,8 @@ export default function RantPage() {
             setRant(prev => prev ? { ...prev, views: (prev.views || 0) + 1 } : null);
           }
         }
+
+        await fetchComments();
       } catch (error) {
         console.error('Error fetching rant:', error);
         setNotFound(true);
@@ -90,6 +112,255 @@ export default function RantPage() {
 
     fetchRant();
   }, [rantId, viewIncremented]);
+
+  const fetchComments = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const { data: commentsData, error } = await supabase
+      .from('comments')
+      .select(`
+        *,
+        comment_likes (
+          user_id
+        )
+      `)
+      .eq('rant_id', rantId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching comments:', error);
+      return;
+    }
+
+    // Process comments to include liked status and organize into threads
+    const processedComments = commentsData.map(comment => ({
+      ...comment,
+      liked_by_user: comment.comment_likes?.some(like => like.user_id === user?.id) || false,
+      replies: []
+    }));
+
+    // Organize into threads
+    const threadedComments = processedComments.reduce((acc: Comment[], comment) => {
+      if (!comment.parent_comment_id) {
+        acc.push(comment);
+      } else {
+        const parentComment = processedComments.find(c => c.id === comment.parent_comment_id);
+        if (parentComment) {
+          parentComment.replies = parentComment.replies || [];
+          parentComment.replies.push(comment);
+        }
+      }
+      return acc;
+    }, []);
+
+    setComments(threadedComments);
+  };
+
+  const handlePostComment = async () => {
+    if (!newComment.trim()) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to comment"
+      });
+      return;
+    }
+
+    try {
+      const { data: comment, error } = await supabase
+        .from('comments')
+        .insert({
+          rant_id: rantId,
+          user_id: user.id,
+          username: user.user_metadata.username,
+          text: newComment,
+          is_anonymous: isAnonymous
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setNewComment('');
+      setIsAnonymous(false);
+      await fetchComments();
+
+      toast({
+        title: "Success",
+        description: "Comment posted successfully"
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  };
+
+  const handlePostReply = async (parentCommentId: string) => {
+    if (!replyText.trim()) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to reply"
+      });
+      return;
+    }
+
+    try {
+      const { data: reply, error } = await supabase
+        .from('comments')
+        .insert({
+          rant_id: rantId,
+          user_id: user.id,
+          username: user.user_metadata.username,
+          parent_comment_id: parentCommentId,
+          text: replyText,
+          is_anonymous: isAnonymous
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setReplyText('');
+      setReplyingTo(null);
+      setIsAnonymous(false);
+      await fetchComments();
+
+      toast({
+        title: "Success",
+        description: "Reply posted successfully"
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  };
+
+  const handleToggleLike = async (commentId: string, currentLikes: number, isLiked: boolean) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to like comments"
+      });
+      return;
+    }
+
+    try {
+      if (isLiked) {
+        // Unlike
+        await supabase
+          .from('comment_likes')
+          .delete()
+          .eq('comment_id', commentId)
+          .eq('user_id', user.id);
+
+        await supabase
+          .from('comments')
+          .update({ likes: currentLikes - 1 })
+          .eq('id', commentId);
+      } else {
+        // Like
+        await supabase
+          .from('comment_likes')
+          .insert({
+            comment_id: commentId,
+            user_id: user.id
+          });
+
+        await supabase
+          .from('comments')
+          .update({ likes: currentLikes + 1 })
+          .eq('id', commentId);
+      }
+
+      await fetchComments();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  };
+
+  const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => (
+    <div className={`pl-${level * 4} mt-4`}>
+      <div className="bg-card/30 rounded-lg p-4">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <span className="font-medium">
+              {comment.is_anonymous ? 'Anonymous' : comment.username}
+            </span>
+            <span className="text-muted-foreground text-sm ml-2">
+              {format(new Date(comment.created_at), 'PPp')}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleToggleLike(comment.id, comment.likes, comment.liked_by_user)}
+            className={comment.liked_by_user ? 'text-red-500' : ''}
+          >
+            <Heart className={`h-4 w-4 mr-1 ${comment.liked_by_user ? 'fill-current' : ''}`} />
+            {comment.likes}
+          </Button>
+        </div>
+        <p className="text-foreground/90 mb-2">{comment.text}</p>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+          >
+            <Reply className="h-4 w-4 mr-1" />
+            Reply
+          </Button>
+        </div>
+        
+        {replyingTo === comment.id && (
+          <div className="mt-4 space-y-4">
+            <Textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Write your reply..."
+              className="min-h-[100px]"
+            />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={isAnonymous}
+                  onCheckedChange={setIsAnonymous}
+                />
+                <span className="text-sm">Post anonymously</span>
+              </div>
+              <Button onClick={() => handlePostReply(comment.id)}>
+                <Send className="h-4 w-4 mr-2" />
+                Post Reply
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {comment.replies && comment.replies.map(reply => (
+          <CommentComponent key={reply.id} comment={reply} level={level + 1} />
+        ))}
+      </div>
+    </div>
+  );
 
   const NavButton = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
     <motion.button
@@ -229,9 +500,39 @@ export default function RantPage() {
             <CardHeader>
               <CardTitle>Comments</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-center text-muted-foreground py-8">
-                No comments yet
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Write your comment..."
+                  className="min-h-[100px]"
+                />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={isAnonymous}
+                      onCheckedChange={setIsAnonymous}
+                    />
+                    <span className="text-sm">Post anonymously</span>
+                  </div>
+                  <Button onClick={handlePostComment}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Post Comment
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {comments.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    No comments yet. Be the first to comment!
+                  </div>
+                ) : (
+                  comments.map(comment => (
+                    <CommentComponent key={comment.id} comment={comment} />
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
