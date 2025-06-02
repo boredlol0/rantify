@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users, Heart, Send, Reply } from 'lucide-react';
@@ -55,7 +55,7 @@ export default function RantPage() {
   const [notFound, setNotFound] = useState(false);
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(true);
   const [viewIncremented, setViewIncremented] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [rawComments, setRawComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
@@ -145,23 +145,22 @@ export default function RantPage() {
       replies: []
     }));
 
-    const threadedComments = processedComments.reduce((acc: Comment[], comment) => {
+    setRawComments(processedComments);
+  };
+
+  const threadedComments = useMemo(() => {
+    return rawComments.reduce((acc: Comment[], comment) => {
       if (!comment.parent_comment_id) {
-        acc.push(comment);
-      } else {
-        const parentComment = processedComments.find(c => c.id === comment.parent_comment_id);
-        if (parentComment) {
-          parentComment.replies = parentComment.replies || [];
-          parentComment.replies.push(comment);
-        }
+        acc.push({
+          ...comment,
+          replies: rawComments.filter(c => c.parent_comment_id === comment.id)
+        });
       }
       return acc;
     }, []);
+  }, [rawComments]);
 
-    setComments(threadedComments);
-  };
-
-  const handlePostComment = async () => {
+  const handlePostComment = useCallback(async () => {
     if (!newComment.trim()) return;
 
     if (!username) {
@@ -204,9 +203,9 @@ export default function RantPage() {
         description: error.message
       });
     }
-  };
+  }, [newComment, isAnonymous, username, rantId, toast]);
 
-  const handlePostReply = async (commentId: string) => {
+  const handlePostReply = useCallback(async (commentId: string) => {
     const replyState = replyStates[commentId];
     if (!replyState?.text.trim()) return;
 
@@ -253,9 +252,9 @@ export default function RantPage() {
         description: error.message
       });
     }
-  };
+  }, [replyStates, username, rantId, toast]);
 
-  const handleToggleLike = async (commentId: string, currentLikes: number, isLiked: boolean) => {
+  const handleToggleLike = useCallback(async (commentId: string, currentLikes: number, isLiked: boolean) => {
     if (!username) {
       toast({
         variant: "destructive",
@@ -300,9 +299,9 @@ export default function RantPage() {
         description: error.message
       });
     }
-  };
+  }, [username, toast]);
 
-  const toggleReply = (commentId: string) => {
+  const toggleReply = useCallback((commentId: string) => {
     setReplyStates(prev => ({
       ...prev,
       [commentId]: {
@@ -311,7 +310,7 @@ export default function RantPage() {
         isAnonymous: prev[commentId]?.isAnonymous || false
       }
     }));
-  };
+  }, []);
 
   const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
     const replyState = replyStates[comment.id] || { open: false, text: '', isAnonymous: false };
@@ -551,12 +550,12 @@ export default function RantPage() {
               </div>
 
               <div className="space-y-4">
-                {comments.length === 0 ? (
+                {threadedComments.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
                     No comments yet. Be the first to comment!
                   </div>
                 ) : (
-                  comments.map(comment => (
+                  threadedComments.map(comment => (
                     <CommentComponent key={comment.id} comment={comment} />
                   ))
                 )}
