@@ -93,10 +93,11 @@ export default function RantPage() {
           .eq('id', rantData.owner_id)
           .single();
 
-        const fullRant = {
-          ...rantData,
-          owner_username: userData?.raw_user_meta_data?.username || "Unkown"
-        };
+        // const fullRant = {
+        //   ...rantData,
+        //   owner_username: userData?.raw_user_meta_data?.username || "Unkown"
+        // };
+        const fullRant = rantData;
         
         setRant(fullRant);
 
