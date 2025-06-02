@@ -347,7 +347,6 @@ export default function RantPage() {
               placeholder="Write your reply..."
               className="min-h-[100px]"
               name="Reply"
-              autoFocus
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
