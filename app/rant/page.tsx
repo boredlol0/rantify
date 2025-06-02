@@ -40,6 +40,12 @@ interface Comment {
   replies?: Comment[];
 }
 
+interface ReplyState {
+  open: boolean;
+  text: string;
+  isAnonymous: boolean;
+}
+
 export default function RantPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,9 +58,8 @@ export default function RantPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState('');
   const [username, setUsername] = useState<string | null>(null);
+  const [replyStates, setReplyStates] = useState<Record<string, ReplyState>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -87,16 +92,6 @@ export default function RantPage() {
           return;
         }
 
-        // const { data: userData, error: userError } = await supabase
-        //   .from('users')
-        //   .select('raw_user_meta_data')
-        //   .eq('id', rantData.owner_id)
-        //   .single();
-
-        // const fullRant = {
-        //   ...rantData,
-        //   owner_username: userData?.raw_user_meta_data?.username || "Unkown"
-        // };
         const fullRant = rantData;
         
         setRant(fullRant);
@@ -211,8 +206,9 @@ export default function RantPage() {
     }
   };
 
-  const handlePostReply = async (parentCommentId: string) => {
-    if (!replyText.trim()) return;
+  const handlePostReply = async (commentId: string) => {
+    const replyState = replyStates[commentId];
+    if (!replyState?.text.trim()) return;
 
     if (!username) {
       toast({
@@ -231,18 +227,19 @@ export default function RantPage() {
           rant_id: rantId,
           user_id: user?.id,
           username,
-          parent_comment_id: parentCommentId,
-          text: replyText,
-          is_anonymous: isAnonymous
+          parent_comment_id: commentId,
+          text: replyState.text,
+          is_anonymous: replyState.isAnonymous
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      setReplyText('');
-      setReplyingTo(null);
-      setIsAnonymous(false);
+      setReplyStates(prev => ({
+        ...prev,
+        [commentId]: { open: false, text: '', isAnonymous: false }
+      }));
       await fetchComments();
 
       toast({
@@ -305,71 +302,92 @@ export default function RantPage() {
     }
   };
 
-  const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => (
-    <div className={`pl-${level * 4} mt-4`}>
-      <div className="bg-card/30 rounded-lg p-4">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <span className="font-medium">
-              {comment.is_anonymous ? 'Anonymous' : comment.username}
-            </span>
-            <span className="text-muted-foreground text-sm ml-2">
-              {format(new Date(comment.created_at), 'PPp')}
-            </span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleToggleLike(comment.id, comment.likes, comment.liked_by_user)}
-            className={comment.liked_by_user ? 'text-red-500' : ''}
-          >
-            <Heart className={`h-4 w-4 mr-1 ${comment.liked_by_user ? 'fill-current' : ''}`} />
-            {comment.likes}
-          </Button>
-        </div>
-        <p className="text-foreground/90 mb-2">{comment.text}</p>
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-          >
-            <Reply className="h-4 w-4 mr-1" />
-            Reply
-          </Button>
-        </div>
-        
-        {replyingTo === comment.id && (
-          <div className="mt-4 space-y-4">
-            <Textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Write your reply..."
-              className="min-h-[100px]"
-              name="Reply"
-            />
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={isAnonymous}
-                  onCheckedChange={setIsAnonymous}
-                />
-                <span className="text-sm">Post anonymously</span>
-              </div>
-              <Button onClick={() => handlePostReply(comment.id)}>
-                <Send className="h-4 w-4 mr-2" />
-                Post Reply
-              </Button>
-            </div>
-          </div>
-        )}
+  const toggleReply = (commentId: string) => {
+    setReplyStates(prev => ({
+      ...prev,
+      [commentId]: {
+        open: !prev[commentId]?.open,
+        text: prev[commentId]?.text || '',
+        isAnonymous: prev[commentId]?.isAnonymous || false
+      }
+    }));
+  };
 
-        {comment.replies && comment.replies.map(reply => (
-          <CommentComponent key={reply.id} comment={reply} level={level + 1} />
-        ))}
+  const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
+    const replyState = replyStates[comment.id] || { open: false, text: '', isAnonymous: false };
+    
+    return (
+      <div className={`pl-${level * 4} mt-4`}>
+        <div className="bg-card/30 rounded-lg p-4">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <span className="font-medium">
+                {comment.is_anonymous ? 'Anonymous' : comment.username}
+              </span>
+              <span className="text-muted-foreground text-sm ml-2">
+                {format(new Date(comment.created_at), 'PPp')}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleToggleLike(comment.id, comment.likes, comment.liked_by_user)}
+              className={comment.liked_by_user ? 'text-red-500' : ''}
+            >
+              <Heart className={`h-4 w-4 mr-1 ${comment.liked_by_user ? 'fill-current' : ''}`} />
+              {comment.likes}
+            </Button>
+          </div>
+          <p className="text-foreground/90 mb-2">{comment.text}</p>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toggleReply(comment.id)}
+            >
+              <Reply className="h-4 w-4 mr-1" />
+              Reply
+            </Button>
+          </div>
+          
+          {replyState.open && (
+            <div className="mt-4 space-y-4">
+              <Textarea
+                value={replyState.text}
+                onChange={(e) => setReplyStates(prev => ({
+                  ...prev,
+                  [comment.id]: { ...replyState, text: e.target.value }
+                }))}
+                placeholder="Write your reply..."
+                className="min-h-[100px]"
+                name="Reply"
+              />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={replyState.isAnonymous}
+                    onCheckedChange={(checked) => setReplyStates(prev => ({
+                      ...prev,
+                      [comment.id]: { ...replyState, isAnonymous: checked }
+                    }))}
+                  />
+                  <span className="text-sm">Post anonymously</span>
+                </div>
+                <Button onClick={() => handlePostReply(comment.id)}>
+                  <Send className="h-4 w-4 mr-2" />
+                  Post Reply
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {comment.replies && comment.replies.map(reply => (
+            <CommentComponent key={reply.id} comment={reply} level={level + 1} />
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const NavButton = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
     <motion.button
