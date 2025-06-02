@@ -87,11 +87,11 @@ export default function RantPage() {
           return;
         }
 
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('raw_user_meta_data')
-          .eq('id', rantData.owner_id)
-          .single();
+        // const { data: userData, error: userError } = await supabase
+        //   .from('users')
+        //   .select('raw_user_meta_data')
+        //   .eq('id', rantData.owner_id)
+        //   .single();
 
         // const fullRant = {
         //   ...rantData,
@@ -346,6 +346,7 @@ export default function RantPage() {
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write your reply..."
               className="min-h-[100px]"
+              name="Reply"
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
