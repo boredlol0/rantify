@@ -345,8 +345,9 @@ export default function RantPage() {
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write your reply..."
-              className="min-h-[100px]"
+              className="min-h-[100px] text-left direction-ltr"
               name="Reply"
+              autoFocus
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
