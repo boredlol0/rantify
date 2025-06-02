@@ -22,7 +22,6 @@ interface Rant {
   created_at: string;
   audio_url: string | null;
   views: number;
-  owner_id: string;
   owner_username: string | null;
 }
 
@@ -42,7 +41,6 @@ interface Comment {
 
 interface ReplyState {
   open: boolean;
-  text: string;
   isAnonymous: boolean;
 }
 
@@ -205,9 +203,8 @@ export default function RantPage() {
     }
   }, [newComment, isAnonymous, username, rantId, toast]);
 
-  const handlePostReply = useCallback(async (commentId: string) => {
-    const replyState = replyStates[commentId];
-    if (!replyState?.text.trim()) return;
+  const handlePostReply = useCallback(async (commentId: string, text: string, isAnonymous: boolean) => {
+    if (!text.trim()) return;
 
     if (!username) {
       toast({
@@ -227,8 +224,8 @@ export default function RantPage() {
           user_id: user?.id,
           username,
           parent_comment_id: commentId,
-          text: replyState.text,
-          is_anonymous: replyState.isAnonymous
+          text,
+          is_anonymous: isAnonymous
         })
         .select()
         .single();
@@ -237,7 +234,7 @@ export default function RantPage() {
 
       setReplyStates(prev => ({
         ...prev,
-        [commentId]: { open: false, text: '', isAnonymous: false }
+        [commentId]: { open: false, isAnonymous: false }
       }));
       await fetchComments();
 
@@ -252,7 +249,7 @@ export default function RantPage() {
         description: error.message
       });
     }
-  }, [replyStates, username, rantId, toast]);
+  }, [username, rantId, toast]);
 
   const handleToggleLike = useCallback(async (commentId: string, currentLikes: number, isLiked: boolean) => {
     if (!username) {
@@ -306,14 +303,14 @@ export default function RantPage() {
       ...prev,
       [commentId]: {
         open: !prev[commentId]?.open,
-        text: prev[commentId]?.text || '',
         isAnonymous: prev[commentId]?.isAnonymous || false
       }
     }));
   }, []);
 
   const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
-    const replyState = replyStates[comment.id] || { open: false, text: '', isAnonymous: false };
+    const replyState = replyStates[comment.id] || { open: false, isAnonymous: false };
+    const [replyText, setReplyText] = useState('');
     
     return (
       <div className={`pl-${level * 4} mt-4`}>
@@ -352,14 +349,10 @@ export default function RantPage() {
           {replyState.open && (
             <div className="mt-4 space-y-4">
               <Textarea
-                value={replyState.text}
-                onChange={(e) => setReplyStates(prev => ({
-                  ...prev,
-                  [comment.id]: { ...replyState, text: e.target.value }
-                }))}
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
                 placeholder="Write your reply..."
                 className="min-h-[100px]"
-                name="Reply"
               />
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -372,7 +365,10 @@ export default function RantPage() {
                   />
                   <span className="text-sm">Post anonymously</span>
                 </div>
-                <Button onClick={() => handlePostReply(comment.id)}>
+                <Button onClick={() => {
+                  handlePostReply(comment.id, replyText, replyState.isAnonymous);
+                  setReplyText('');
+                }}>
                   <Send className="h-4 w-4 mr-2" />
                   Post Reply
                 </Button>
