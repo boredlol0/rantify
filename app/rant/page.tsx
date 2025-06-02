@@ -298,13 +298,6 @@ export default function RantPage() {
   };
 
   const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
-    const handleReplyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setReplyText(prev => ({
-        ...prev,
-        [comment.id]: e.target.value
-      }));
-    };
-
     return (
       <div className={`pl-${level * 4} mt-4`}>
         <div className="bg-card/30 rounded-lg p-4">
@@ -343,7 +336,10 @@ export default function RantPage() {
             <div className="mt-4 space-y-4">
               <Textarea
                 value={replyText[comment.id] || ''}
-                onChange={handleReplyChange}
+                onChange={(e) => setReplyText(prev => ({
+                  ...prev,
+                  [comment.id]: e.target.value
+                }))}
                 placeholder="Write your reply..."
                 className="min-h-[100px]"
                 ref={replyTextareaRef}
