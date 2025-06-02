@@ -54,7 +54,18 @@ export default function RantPage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [username, setUsername] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUsername(user.user_metadata.username);
+      }
+    };
+    fetchUser();
+  }, []);
 
   useEffect(() => {
     const fetchRant = async () => {
@@ -132,14 +143,12 @@ export default function RantPage() {
       return;
     }
 
-    // Process comments to include liked status and organize into threads
     const processedComments = commentsData.map(comment => ({
       ...comment,
       liked_by_user: comment.comment_likes?.some(like => like.user_id === user?.id) || false,
       replies: []
     }));
 
-    // Organize into threads
     const threadedComments = processedComments.reduce((acc: Comment[], comment) => {
       if (!comment.parent_comment_id) {
         acc.push(comment);
@@ -159,8 +168,7 @@ export default function RantPage() {
   const handlePostComment = async () => {
     if (!newComment.trim()) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!username) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -170,12 +178,13 @@ export default function RantPage() {
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const { data: comment, error } = await supabase
         .from('comments')
         .insert({
           rant_id: rantId,
-          user_id: user.id,
-          username: user.user_metadata.username,
+          user_id: user?.id,
+          username,
           text: newComment,
           is_anonymous: isAnonymous
         })
@@ -204,8 +213,7 @@ export default function RantPage() {
   const handlePostReply = async (parentCommentId: string) => {
     if (!replyText.trim()) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!username) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -215,12 +223,13 @@ export default function RantPage() {
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const { data: reply, error } = await supabase
         .from('comments')
         .insert({
           rant_id: rantId,
-          user_id: user.id,
-          username: user.user_metadata.username,
+          user_id: user?.id,
+          username,
           parent_comment_id: parentCommentId,
           text: replyText,
           is_anonymous: isAnonymous
@@ -249,8 +258,7 @@ export default function RantPage() {
   };
 
   const handleToggleLike = async (commentId: string, currentLikes: number, isLiked: boolean) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!username) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -260,25 +268,24 @@ export default function RantPage() {
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       if (isLiked) {
-        // Unlike
         await supabase
           .from('comment_likes')
           .delete()
           .eq('comment_id', commentId)
-          .eq('user_id', user.id);
+          .eq('user_id', user?.id);
 
         await supabase
           .from('comments')
           .update({ likes: currentLikes - 1 })
           .eq('id', commentId);
       } else {
-        // Like
         await supabase
           .from('comment_likes')
           .insert({
             comment_id: commentId,
-            user_id: user.id
+            user_id: user?.id
           });
 
         await supabase
