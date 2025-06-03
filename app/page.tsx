@@ -5,9 +5,12 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { MessageSquarePlus, Users, LogIn } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { useTheme } from 'next-themes';
 
 export default function Home() {
   const router = useRouter();
+  const { theme } = useTheme();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-accent">
@@ -80,6 +83,24 @@ export default function Home() {
           </motion.div>
         </motion.section>
       </main>
+
+      <motion.a
+        href="https://bolt.new"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-4 right-4 z-50 transition-transform hover:scale-105"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.6 }}
+      >
+        <Image
+          src={theme === 'dark' ? '/white_circle_360x360.png' : '/black_circle_360x360.png'}
+          alt="Powered by Bolt.new"
+          width={60}
+          height={60}
+          className="rounded-full shadow-lg"
+        />
+      </motion.a>
     </div>
   );
 }
