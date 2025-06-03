@@ -44,7 +44,7 @@ export default function Home() {
           className="text-center max-w-3xl mx-auto"
         >
           <h2 className="text-4xl md:text-6xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500">
-            Vent it out. Reframe it. Feel better.
+            Vent it out. Feel better.
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground mb-12">
             Transform your frustrations into insights with AI-powered perspective shifts.
