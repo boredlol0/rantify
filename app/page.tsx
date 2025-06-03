@@ -73,10 +73,6 @@ export default function Home() {
               <p className="text-muted-foreground">Let it all out in a safe, judgment-free space. Your thoughts matter.</p>
             </div>
             <div className="p-6 rounded-lg bg-card/50 backdrop-blur-sm">
-              <h3 className="text-xl font-semibold mb-3">AI Insights</h3>
-              <p className="text-muted-foreground">Receive thoughtful, AI-generated perspectives that help shift your mindset.</p>
-            </div>
-            <div className="p-6 rounded-lg bg-card/50 backdrop-blur-sm">
               <h3 className="text-xl font-semibold mb-3">Grow Together</h3>
               <p className="text-muted-foreground">Connect with others who understand. Share experiences and support.</p>
             </div>
