@@ -47,7 +47,7 @@ export default function Home() {
             Vent it out. Feel better.
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground mb-12">
-            Transform your frustrations into insights with AI-powered perspective shifts.
+            Your voice matters.
             Let go of what's weighing you down and discover a fresh outlook.
           </p>
 
