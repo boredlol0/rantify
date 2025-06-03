@@ -52,11 +52,11 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-20">
-            <Button size="lg" className="text-lg">
+            <Button size="lg" className="text-lg" onClick={() => router.push('/login')}>
               <MessageSquarePlus className="mr-2 h-5 w-5" />
               Post a Rant
             </Button>
-            <Button size="lg" variant="outline" className="text-lg">
+            <Button size="lg" variant="outline" className="text-lg" onClick={() => router.push('/rants')}>
               <Users className="mr-2 h-5 w-5" />
               View Rants
             </Button>
