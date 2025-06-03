@@ -25,6 +25,8 @@ export async function GET(request: Request) {
       .eq('id', rantId)
       .single();
 
+    console.log(rant)
+
     if (rantError || !rant) {
       return NextResponse.json(
         { error: 'Rant not found' },
