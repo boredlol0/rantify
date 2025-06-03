@@ -47,7 +47,7 @@ export default function Home() {
             Vent it out. Feel better.
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground mb-12">
-            Your voice matters.
+            Your voice matters. <br />
             Let go of what's weighing you down and discover a fresh outlook to uplift your day.
           </p>
 
