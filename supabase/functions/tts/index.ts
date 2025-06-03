@@ -1,3 +1,4 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.39.7';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const ELEVENLABS_API_ENDPOINT = 'https://api.elevenlabs.io/v1/text-to-speech';
@@ -93,6 +94,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'audio/mpeg',
+        'Content-Length': audioBuffer.byteLength.toString(),
         'Cache-Control': 'public, max-age=3600',
       },
     });
