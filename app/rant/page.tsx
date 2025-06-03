@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users, Heart, Send, Reply, LogOut } from 'lucide-react';
+import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users, Heart, Send, Reply, LogOut, Volume2, VolumeX } from 'lucide-react';
 import { AudioPlayer } from '@/components/ui/audio-player';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -59,6 +59,10 @@ export default function RantPage() {
   const [username, setUsername] = useState<string | null>(null);
   const [replyStates, setReplyStates] = useState<Record<string, ReplyState>>({});
   const { toast } = useToast();
+  const [isTTSPlaying, setIsTTSPlaying] = useState(false);
+  const [ttsError, setTTSError] = useState<string | null>(null);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [audioSource, setAudioSource] = useState<AudioBufferSourceNode | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -328,6 +332,60 @@ export default function RantPage() {
     }
   };
 
+  const playTTS = async () => {
+    try {
+      if (isTTSPlaying) {
+        audioSource?.stop();
+        setIsTTSPlaying(false);
+        return;
+      }
+
+      setTTSError(null);
+      const response = await fetch(`/api/tts?id=${rantId}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate speech');
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      setAudioContext(context);
+
+      const audioBuffer = await context.decodeAudioData(arrayBuffer);
+      const source = context.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(context.destination);
+      setAudioSource(source);
+
+      source.onended = () => {
+        setIsTTSPlaying(false);
+        setAudioSource(null);
+      };
+
+      source.start(0);
+      setIsTTSPlaying(true);
+    } catch (error: any) {
+      setTTSError(error.message);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioSource) {
+        audioSource.stop();
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+    };
+  }, [audioSource, audioContext]);
+
   const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
     const replyState = replyStates[comment.id] || { open: false, isAnonymous: false };
     const [replyText, setReplyText] = useState('');
@@ -501,24 +559,52 @@ export default function RantPage() {
               )}
               
               <div className="space-y-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {isTranscriptExpanded ? (
-                    <>
-                      <ChevronUp className="h-4 w-4 mr-1" />
-                      Hide Transcript
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="h-4 w-4 mr-1" />
-                      Show Transcript
-                    </>
-                  )}
-                </Button>
+                <div className="flex justify-between items-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {isTranscriptExpanded ? (
+                      <>
+                        <ChevronUp className="h-4 w-4 mr-1" />
+                        Hide Transcript
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4 mr-1" />
+                        Show Transcript
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={playTTS}
+                    disabled={!!ttsError}
+                    className={`transition-colors ${ttsError ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isTTSPlaying ? (
+                      <>
+                        <VolumeX className="h-4 w-4 mr-2" />
+                        Stop TTS
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-4 w-4 mr-2" />
+                        Play TTS
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {ttsError && (
+                  <p className="text-sm text-destructive">
+                    TTS feature temporarily unavailable
+                  </p>
+                )}
 
                 <AnimatePresence>
                   {isTranscriptExpanded && (

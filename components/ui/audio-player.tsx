@@ -20,7 +20,14 @@ export function AudioPlayer({ src, className, ...props }: AudioPlayerProps) {
   useEffect(() => {
     if (!waveformRef.current) return;
 
-    wavesurferRef.current = WaveSurfer.create({
+    // Cleanup previous instance if it exists
+    if (wavesurferRef.current) {
+      wavesurferRef.current.destroy();
+      wavesurferRef.current = null;
+    }
+
+    // Create new instance
+    const wavesurfer = WaveSurfer.create({
       container: waveformRef.current,
       waveColor: '#8b5cf6',
       progressColor: '#4c1d95',
@@ -33,24 +40,42 @@ export function AudioPlayer({ src, className, ...props }: AudioPlayerProps) {
       backend: 'WebAudio',
     });
 
-    wavesurferRef.current.load(src);
+    wavesurferRef.current = wavesurfer;
 
-    wavesurferRef.current.on('ready', () => {
-      const duration = wavesurferRef.current?.getDuration() || 0;
-      setDuration(formatTime(duration));
-    });
+    const setupWaveSurfer = async () => {
+      try {
+        await wavesurfer.load(src);
+        
+        wavesurfer.on('ready', () => {
+          const duration = wavesurfer.getDuration() || 0;
+          setDuration(formatTime(duration));
+        });
 
-    wavesurferRef.current.on('audioprocess', () => {
-      const currentTime = wavesurferRef.current?.getCurrentTime() || 0;
-      setCurrentTime(formatTime(currentTime));
-    });
+        wavesurfer.on('audioprocess', () => {
+          const currentTime = wavesurfer.getCurrentTime() || 0;
+          setCurrentTime(formatTime(currentTime));
+        });
 
-    wavesurferRef.current.on('finish', () => {
-      setIsPlaying(false);
-    });
+        wavesurfer.on('finish', () => {
+          setIsPlaying(false);
+        });
+      } catch (error) {
+        console.error('Error loading audio:', error);
+      }
+    };
 
+    setupWaveSurfer();
+
+    // Cleanup function
     return () => {
-      wavesurferRef.current?.destroy();
+      if (wavesurferRef.current) {
+        try {
+          wavesurferRef.current.destroy();
+          wavesurferRef.current = null;
+        } catch (error) {
+          console.error('Error destroying WaveSurfer instance:', error);
+        }
+      }
     };
   }, [src]);
 
