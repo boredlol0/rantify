@@ -341,7 +341,14 @@ export default function RantPage() {
       }
 
       setTTSError(null);
-      const response = await fetch(`/api/tts?id=${rantId}`);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/tts?id=${rantId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
       
       if (!response.ok) {
         const error = await response.json();
