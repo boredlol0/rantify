@@ -66,7 +66,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="grid md:grid-cols-3 gap-8 text-center"
+            className="grid md:grid-cols-2 gap-8 text-center"
           >
             <div className="p-6 rounded-lg bg-card/50 backdrop-blur-sm">
               <h3 className="text-xl font-semibold mb-3">Express Freely</h3>
