@@ -7,8 +7,8 @@ import { Toaster } from '@/components/ui/toaster';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Rant to Reflection - Transform Your Thoughts',
-  description: 'Turn your rants into meaningful reflections with AI-powered perspective shifts',
+  title: 'Rantify - Express Yourself Freely',
+  description: 'Share your thoughts and connect with others in a supportive community',
 };
 
 export default function RootLayout({

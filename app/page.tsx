@@ -21,7 +21,7 @@ export default function Home() {
             animate={{ opacity: 1, x: 0 }}
             className="text-xl font-bold"
           >
-            Rant to Reflection
+            Rantify
           </motion.h1>
           <div className="flex items-center gap-4">
             <ThemeToggle />
