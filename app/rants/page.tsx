@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Home, ArrowUpDown, Clock, Eye, Globe } from 'lucide-react';
+import { Home, ArrowUpDown, Clock, Eye, Globe, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { AudioPlayer } from '@/components/ui/audio-player';
+import { useToast } from '@/hooks/use-toast';
 
 interface Rant {
   id: string;
@@ -30,6 +31,7 @@ export default function RantsPage() {
   const [timeRange, setTimeRange] = useState('day');
   const [rants, setRants] = useState<Rant[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchRants();
@@ -82,6 +84,26 @@ export default function RantsPage() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "You have been logged out successfully"
+      });
+      
+      router.push('/');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  };
+
   const NavButton = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
     <motion.button
       onClick={onClick}
@@ -101,8 +123,9 @@ export default function RantsPage() {
         animate={{ opacity: 1, y: 0 }}
         className="fixed top-0 left-0 right-0 z-50 py-4 backdrop-blur-md bg-background/50 border-b border-border/50"
       >
-        <div className="container mx-auto flex justify-center">
+        <div className="container mx-auto flex justify-center gap-4">
           <NavButton icon={Home} label="Home" onClick={() => router.push('/home')} />
+          <NavButton icon={LogOut} label="Logout" onClick={handleLogout} />
         </div>
       </motion.nav>
 

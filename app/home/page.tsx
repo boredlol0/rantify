@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2, ChevronDown, ChevronUp, Eye, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
@@ -111,6 +111,26 @@ export default function HomePage() {
       }
     };
   }, [isRecording, timeLeft]);
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "You have been logged out successfully"
+      });
+      
+      router.push('/');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -323,10 +343,14 @@ export default function HomePage() {
           transition={{ duration: 0.5 }}
         >
           <Card className="border-none bg-card/50 backdrop-blur-sm">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-4xl font-bold">
                 {greeting}, {username}!
               </CardTitle>
+              <Button variant="ghost" onClick={handleLogout}>
+                <LogOut className="h-5 w-5 mr-2" />
+                Logout
+              </Button>
             </CardHeader>
           </Card>
         </motion.div>

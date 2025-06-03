@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users, Heart, Send, Reply } from 'lucide-react';
+import { Lock, Globe, Eye, ChevronDown, ChevronUp, Home, Users, Heart, Send, Reply, LogOut } from 'lucide-react';
 import { AudioPlayer } from '@/components/ui/audio-player';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -308,6 +308,26 @@ export default function RantPage() {
     }));
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "You have been logged out successfully"
+      });
+      
+      router.push('/');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  };
+
   const CommentComponent = ({ comment, level = 0 }: { comment: Comment; level?: number }) => {
     const replyState = replyStates[comment.id] || { open: false, isAnonymous: false };
     const [replyText, setReplyText] = useState('');
@@ -405,6 +425,7 @@ export default function RantPage() {
       <div className="container mx-auto flex justify-center gap-4">
         <NavButton icon={Home} label="Home" onClick={() => router.push('/home')} />
         <NavButton icon={Users} label="Rants" onClick={() => router.push('/rants')} />
+        <NavButton icon={LogOut} label="Logout" onClick={handleLogout} />
       </div>
     </motion.nav>
   );
