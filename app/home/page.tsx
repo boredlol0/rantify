@@ -374,18 +374,16 @@ export default function HomePage() {
               </DialogHeader>
               <div className="space-y-6">
                 <div className="flex flex-col items-center gap-4">
-                  <Button
-                    variant={isRecording ? "destructive" : "default"}
-                    size="lg"
-                    className="rounded-full w-16 h-16"
+                  <button
                     onClick={isRecording ? stopRecording : startRecording}
+                    className="text-foreground hover:text-foreground/80 transition-colors"
                   >
                     {isRecording ? (
                       <MicOff className="h-8 w-8" />
                     ) : (
                       <Mic className="h-8 w-8" />
                     )}
-                  </Button>
+                  </button>
                   {isRecording && (
                     <div className="text-sm text-muted-foreground">
                       Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
