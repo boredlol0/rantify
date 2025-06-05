@@ -26,6 +26,7 @@ interface Rant {
   created_at: string;
   audio_url: string | null;
   views: number;
+  owner_username: string | null;
 }
 
 export default function HomePage() {
@@ -403,60 +404,52 @@ export default function HomePage() {
                       </SelectContent>
                     </Select>
                   )}
-                  <button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    className="text-foreground hover:text-foreground/80 transition-colors"
-                  >
-                    {isRecording ? (
-                      <MicOff className="h-8 w-8" />
-                    ) : (
-                      <Mic className="h-8 w-8" />
-                    )}
-                  </button>
-                  {isRecording && (
-                    <div className="text-sm text-muted-foreground">
-                      Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                    </div>
-                  )}
-                </div>
-
-                <AnimatePresence>
-                  {audioBlob && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="space-y-4"
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={isRecording ? stopRecording : startRecording}
+                      className="text-foreground hover:text-foreground/80 transition-colors"
                     >
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">Private Rant</span>
-                          <Switch
-                            checked={isPrivate}
-                            onCheckedChange={setIsPrivate}
-                          />
-                        </div>
-
-                        {!isPrivate && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm">Post Anonymously</span>
-                            <Switch
-                              checked={isAnonymous}
-                              onCheckedChange={setIsAnonymous}
-                            />
-                          </div>
-                        )}
-
-                        <Button
-                          className="w-full"
-                          onClick={handleSubmitRant}
-                        >
-                          Post Rant
-                        </Button>
+                      {isRecording ? (
+                        <MicOff className="h-8 w-8" />
+                      ) : (
+                        <Mic className="h-8 w-8" />
+                      )}
+                    </button>
+                    {isRecording && (
+                      <div className="text-sm text-muted-foreground">
+                        Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    )}
+                  </div>
+
+                  <div className="space-y-4 w-full">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Private Rant</span>
+                      <Switch
+                        checked={isPrivate}
+                        onCheckedChange={setIsPrivate}
+                      />
+                    </div>
+
+                    {!isPrivate && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Post Anonymously</span>
+                        <Switch
+                          checked={isAnonymous}
+                          onCheckedChange={setIsAnonymous}
+                        />
+                      </div>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      onClick={handleSubmitRant}
+                      disabled={!isRecording && !audioBlob}
+                    >
+                      {isRecording ? 'Stop and Post' : 'Post Rant'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
