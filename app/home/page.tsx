@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { AudioPlayer } from '@/components/ui/audio-player';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 
 interface Rant {
@@ -38,12 +39,31 @@ export default function HomePage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [expandedRants, setExpandedRants] = useState<Set<string>>(new Set());
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string>('');
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const loadAudioDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(device => device.kind === 'audioinput');
+        setAudioDevices(audioInputs);
+        if (audioInputs.length > 0) {
+          setSelectedDevice(audioInputs[0].deviceId);
+        }
+      } catch (error) {
+        console.error('Error loading audio devices:', error);
+      }
+    };
+
+    loadAudioDevices();
+  }, []);
 
   const toggleTranscript = (rantId: string) => {
     setExpandedRants(prev => {
@@ -134,7 +154,11 @@ export default function HomePage() {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const constraints = {
+        audio: selectedDevice ? { deviceId: { exact: selectedDevice } } : true
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
 
@@ -374,6 +398,20 @@ export default function HomePage() {
               </DialogHeader>
               <div className="space-y-6">
                 <div className="flex flex-col items-center gap-4">
+                  {audioDevices.length > 1 && (
+                    <Select value={selectedDevice} onValueChange={setSelectedDevice}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select microphone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {audioDevices.map((device) => (
+                          <SelectItem key={device.deviceId} value={device.deviceId}>
+                            {device.label || `Microphone ${device.deviceId.slice(0, 5)}...`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <button
                     onClick={isRecording ? stopRecording : startRecording}
                     className="text-foreground hover:text-foreground/80 transition-colors"
