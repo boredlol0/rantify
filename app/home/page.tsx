@@ -41,7 +41,6 @@ export default function HomePage() {
   const [expandedRants, setExpandedRants] = useState<Set<string>>(new Set());
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -144,26 +143,6 @@ export default function HomePage() {
     };
   }, [isRecording, timeLeft]);
 
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: "You have been logged out successfully"
-      });
-      
-      router.push('/');
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message
-      });
-    }
-  };
-
   const startRecording = async () => {
     try {
       const constraints = {
@@ -174,8 +153,36 @@ export default function HomePage() {
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
 
-      mediaRecorderRef.current.ondataavailable = (event) => {
+      mediaRecorderRef.current.ondataavailable = async (event) => {
         audioChunksRef.current.push(event.data);
+        
+        // Create a blob from the last 2 seconds of audio
+        const audioBlob = new Blob([event.data], { type: 'audio/wav' });
+        
+        // Send to edge function
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/speech-to-text`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+              },
+              body: audioBlob,
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error('Failed to transcribe audio');
+          }
+
+          const { text } = await response.json();
+          if (text) {
+            setTranscript(prev => prev + ' ' + text);
+          }
+        } catch (error) {
+          console.error('Transcription error:', error);
+        }
       };
 
       mediaRecorderRef.current.onstop = () => {
@@ -183,55 +190,8 @@ export default function HomePage() {
         setAudioBlob(audioBlob);
       };
 
-      mediaRecorderRef.current.start();
-
-      if (!('webkitSpeechRecognition' in window)) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Speech recognition is not supported in your browser."
-        });
-        return;
-      }
-
-      // Initialize speech recognition
-      const SpeechRecognition = window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
-
-      recognitionRef.current.onstart = () => {
-        console.log('Speech recognition started');
-      };
-
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        toast({
-          variant: "destructive",
-          title: "Speech Recognition Error",
-          description: `Error: ${event.error}. Please try again.`
-        });
-      };
-
-      recognitionRef.current.onend = () => {
-        console.log('Speech recognition ended');
-        // Restart if still recording
-        if (isRecording) {
-          recognitionRef.current.start();
-        }
-      };
-
-      recognitionRef.current.onresult = (event: any) => {
-        console.log(event)
-        let finalTranscript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          finalTranscript += event.results[i][0].transcript;
-        }
-        setTranscript(finalTranscript);
-      };
-
-      recognitionRef.current.start();
+      // Set a shorter timeslice to send data more frequently
+      mediaRecorderRef.current.start(2000); // Send data every 2 seconds
       setIsRecording(true);
       setTimeLeft(180);
     } catch (error: any) {
@@ -245,9 +205,6 @@ export default function HomePage() {
   };
 
   const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
@@ -384,6 +341,26 @@ export default function HomePage() {
       setIsAnonymous(false);
       setTimeLeft(180);
       setAudioBlob(null);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "You have been logged out successfully"
+      });
+      
+      router.push('/');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
     }
   };
 
