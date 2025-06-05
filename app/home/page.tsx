@@ -19,7 +19,8 @@ import Link from 'next/link';
 interface Rant {
   id: string;
   title: string;
-  transcript: string;
+  transcript: string | null;
+  transcript_status: 'pending' | 'complete' | 'error';
   is_private: boolean;
   anonymous: boolean;
   created_at: string;
@@ -32,7 +33,6 @@ export default function HomePage() {
   const [greeting, setGreeting] = useState('');
   const [rants, setRants] = useState<Rant[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [timeLeft, setTimeLeft] = useState(180);
@@ -41,7 +41,6 @@ export default function HomePage() {
   const [expandedRants, setExpandedRants] = useState<Set<string>>(new Set());
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -51,7 +50,7 @@ export default function HomePage() {
   useEffect(() => {
     const loadAudioDevices = async () => {
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: true }); // Request permission first
+        await navigator.mediaDevices.getUserMedia({ audio: true });
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioInputs = devices.filter(device => device.kind === 'audioinput');
         setAudioDevices(audioInputs);
@@ -70,7 +69,6 @@ export default function HomePage() {
 
     loadAudioDevices();
 
-    // Listen for device changes
     navigator.mediaDevices.addEventListener('devicechange', loadAudioDevices);
     return () => {
       navigator.mediaDevices.removeEventListener('devicechange', loadAudioDevices);
@@ -184,54 +182,6 @@ export default function HomePage() {
       };
 
       mediaRecorderRef.current.start();
-
-      if (!('webkitSpeechRecognition' in window)) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Speech recognition is not supported in your browser."
-        });
-        return;
-      }
-
-      // Initialize speech recognition
-      const SpeechRecognition = window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
-
-      recognitionRef.current.onstart = () => {
-        console.log('Speech recognition started');
-      };
-
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        toast({
-          variant: "destructive",
-          title: "Speech Recognition Error",
-          description: `Error: ${event.error}. Please try again.`
-        });
-      };
-
-      recognitionRef.current.onend = () => {
-        console.log('Speech recognition ended');
-        // Restart if still recording
-        if (isRecording) {
-          recognitionRef.current.start();
-        }
-      };
-
-      recognitionRef.current.onresult = (event: any) => {
-        console.log(event)
-        let finalTranscript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          finalTranscript += event.results[i][0].transcript;
-        }
-        setTranscript(finalTranscript);
-      };
-
-      recognitionRef.current.start();
       setIsRecording(true);
       setTimeLeft(180);
     } catch (error: any) {
@@ -245,9 +195,6 @@ export default function HomePage() {
   };
 
   const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
@@ -299,7 +246,7 @@ export default function HomePage() {
   };
 
   const handleSubmitRant = async () => {
-    if (!transcript.trim() || !audioBlob) {
+    if (!audioBlob) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -326,14 +273,13 @@ export default function HomePage() {
       const { data: { publicUrl } } = supabase.storage
         .from('rants')
         .getPublicUrl(audioPath);
-
-      const title = transcript.split(' ').slice(0, 5).join(' ') + '...';
       
       const { error: rantError } = await supabase.from('rants').insert({
         id: rantId,
         owner_id: user.id,
-        title,
-        transcript,
+        title: 'Processing...',
+        transcript: null,
+        transcript_status: 'pending',
         is_private: isPrivate,
         anonymous: !isPrivate ? isAnonymous : false,
         audio_url: publicUrl,
@@ -346,6 +292,16 @@ export default function HomePage() {
         throw new Error('Failed to save rant');
       }
 
+      // Trigger transcription in background
+      fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/transcribe-rant`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rant_id: rantId }),
+      }).catch(console.error); // Ignore errors since this runs in background
+
       const { data: userRants } = await supabase
         .from('rants')
         .select('*')
@@ -357,14 +313,13 @@ export default function HomePage() {
       }
 
       setIsDialogOpen(false);
-      setTranscript('');
       setIsPrivate(false);
       setIsAnonymous(false);
       setAudioBlob(null);
       
       toast({
         title: "Success",
-        description: "Your rant has been posted successfully!"
+        description: "Your rant has been posted and is being transcribed!"
       });
     } catch (error: any) {
       toast({
@@ -379,7 +334,6 @@ export default function HomePage() {
     setIsDialogOpen(open);
     if (!open) {
       stopRecording();
-      setTranscript('');
       setIsPrivate(false);
       setIsAnonymous(false);
       setTimeLeft(180);
@@ -467,17 +421,13 @@ export default function HomePage() {
                 </div>
 
                 <AnimatePresence>
-                  {transcript && (
+                  {audioBlob && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       className="space-y-4"
                     >
-                      <div className="bg-muted/50 rounded-lg p-4 h-32 overflow-y-auto">
-                        {transcript}
-                      </div>
-
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <span className="text-sm">Private Rant</span>
@@ -633,7 +583,13 @@ export default function HomePage() {
                           className="overflow-hidden"
                         >
                           <div className="mt-4 p-4 bg-muted/20 rounded-lg">
-                            {rant.transcript}
+                            {rant.transcript_status === 'pending' ? (
+                              <p className="text-muted-foreground">Transcription in progress...</p>
+                            ) : rant.transcript_status === 'error' ? (
+                              <p className="text-destructive">Failed to transcribe rant</p>
+                            ) : (
+                              rant.transcript
+                            )}
                           </div>
                         </motion.div>
                       )}
