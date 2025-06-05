@@ -5,15 +5,16 @@ import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2, ChevronDown, ChevronUp, Eye, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { AudioPlayer } from '@/components/ui/audio-player';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Link from 'next/link';
 
 interface Rant {
@@ -42,6 +43,7 @@ export default function HomePage() {
   const [expandedRants, setExpandedRants] = useState<Set<string>>(new Set());
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
+  const [rantTitle, setRantTitle] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -278,7 +280,7 @@ export default function HomePage() {
       const { error: rantError } = await supabase.from('rants').insert({
         id: rantId,
         owner_id: user.id,
-        title: 'Processing...',
+        title: rantTitle.trim() || 'Untitled Rant',
         transcript: null,
         transcript_status: 'pending',
         is_private: isPrivate,
@@ -317,6 +319,7 @@ export default function HomePage() {
       setIsPrivate(false);
       setIsAnonymous(false);
       setAudioBlob(null);
+      setRantTitle('');
       
       toast({
         title: "Success",
@@ -339,6 +342,7 @@ export default function HomePage() {
       setIsAnonymous(false);
       setTimeLeft(180);
       setAudioBlob(null);
+      setRantTitle('');
     }
   };
 
@@ -390,6 +394,13 @@ export default function HomePage() {
               </DialogHeader>
               <div className="space-y-6">
                 <div className="flex flex-col items-center gap-4">
+                  <Input
+                    placeholder="Enter rant title (optional)"
+                    value={rantTitle}
+                    onChange={(e) => setRantTitle(e.target.value)}
+                    className="w-full"
+                  />
+                  
                   {audioDevices.length > 1 && (
                     <Select value={selectedDevice} onValueChange={setSelectedDevice}>
                       <SelectTrigger className="w-full">
@@ -404,6 +415,7 @@ export default function HomePage() {
                       </SelectContent>
                     </Select>
                   )}
+
                   <div className="flex flex-col items-center gap-2">
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
