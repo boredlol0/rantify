@@ -51,6 +51,7 @@ export default function HomePage() {
   useEffect(() => {
     const loadAudioDevices = async () => {
       try {
+        await navigator.mediaDevices.getUserMedia({ audio: true }); // Request permission first
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioInputs = devices.filter(device => device.kind === 'audioinput');
         setAudioDevices(audioInputs);
@@ -59,11 +60,22 @@ export default function HomePage() {
         }
       } catch (error) {
         console.error('Error loading audio devices:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Please ensure microphone permissions are granted"
+        });
       }
     };
 
     loadAudioDevices();
-  }, []);
+
+    // Listen for device changes
+    navigator.mediaDevices.addEventListener('devicechange', loadAudioDevices);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', loadAudioDevices);
+    };
+  }, [toast]);
 
   const toggleTranscript = (rantId: string) => {
     setExpandedRants(prev => {
@@ -182,10 +194,33 @@ export default function HomePage() {
         return;
       }
 
+      // Initialize speech recognition
       const SpeechRecognition = window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onstart = () => {
+        console.log('Speech recognition started');
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        toast({
+          variant: "destructive",
+          title: "Speech Recognition Error",
+          description: `Error: ${event.error}. Please try again.`
+        });
+      };
+
+      recognitionRef.current.onend = () => {
+        console.log('Speech recognition ended');
+        // Restart if still recording
+        if (isRecording) {
+          recognitionRef.current.start();
+        }
+      };
 
       recognitionRef.current.onresult = (event: any) => {
         let finalTranscript = '';
@@ -198,7 +233,8 @@ export default function HomePage() {
       recognitionRef.current.start();
       setIsRecording(true);
       setTimeLeft(180);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Recording error:', error);
       toast({
         variant: "destructive",
         title: "Error",
