@@ -23,6 +23,7 @@ export function AIVoiceInput({
 }: AIVoiceInputProps) {
   const [submitted, setSubmitted] = useState(false);
   const [time, setTime] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(180); // 3 minutes countdown
   const [isClient, setIsClient] = useState(false);
   const [isDemo, setIsDemo] = useState(demoMode);
 
@@ -37,10 +38,20 @@ export function AIVoiceInput({
       onStart?.();
       intervalId = setInterval(() => {
         setTime((t) => t + 1);
+        setTimeLeft((t) => {
+          const newTime = t - 1;
+          // Auto-stop when countdown reaches 0
+          if (newTime <= 0) {
+            setSubmitted(false);
+            return 180; // Reset to 3 minutes
+          }
+          return newTime;
+        });
       }, 1000);
     } else {
       onStop?.(time);
       setTime(0);
+      setTimeLeft(180); // Reset countdown when stopped
     }
 
     return () => clearInterval(intervalId);
@@ -107,11 +118,11 @@ export function AIVoiceInput({
           className={cn(
             "font-mono text-sm transition-opacity duration-300",
             submitted
-              ? "text-black/70 dark:text-white/70"
+              ? "text-red-500 dark:text-red-400" // Red color when recording (countdown)
               : "text-black/30 dark:text-white/30"
           )}
         >
-          {formatTime(time)}
+          {submitted ? formatTime(timeLeft) : formatTime(180)}
         </span>
 
         <div className="h-4 w-64 flex items-center justify-center gap-0.5">
@@ -137,7 +148,7 @@ export function AIVoiceInput({
         </div>
 
         <p className="h-4 text-xs text-black/70 dark:text-white/70">
-          {submitted ? "Listening..." : "Click to speak"}
+          {submitted ? "Recording..." : "Click to speak"}
         </p>
       </div>
     </div>
