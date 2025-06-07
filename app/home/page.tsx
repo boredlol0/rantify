@@ -9,12 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquarePlus, Users, Clock, Lock, Globe, Mic, MicOff, Trash2, ChevronDown, ChevronUp, Eye, LogOut } from 'lucide-react';
+import { MessageSquarePlus, Users, Clock, Lock, Globe, Trash2, ChevronDown, ChevronUp, Eye, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { AudioPlayer } from '@/components/ui/audio-player';
+import { AIVoiceInput } from '@/components/ui/ai-voice-input';
 import Link from 'next/link';
 
 interface Rant {
@@ -37,16 +38,15 @@ export default function HomePage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(180);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [expandedRants, setExpandedRants] = useState<Set<string>>(new Set());
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [rantTitle, setRantTitle] = useState('');
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -125,26 +125,6 @@ export default function HomePage() {
     fetchUserAndRants();
   }, [router]);
 
-  useEffect(() => {
-    if (isRecording && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            stopRecording();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isRecording, timeLeft]);
-
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -186,7 +166,6 @@ export default function HomePage() {
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
-      setTimeLeft(180);
     } catch (error: any) {
       console.error('Recording error:', error);
       toast({
@@ -202,10 +181,16 @@ export default function HomePage() {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
     setIsRecording(false);
+  };
+
+  const handleVoiceStart = () => {
+    startRecording();
+  };
+
+  const handleVoiceStop = (duration: number) => {
+    setRecordingDuration(duration);
+    stopRecording();
   };
 
   const handleDeleteRant = async (rantId: string, audioUrl: string | null) => {
@@ -320,6 +305,7 @@ export default function HomePage() {
       setIsAnonymous(false);
       setAudioBlob(null);
       setRantTitle('');
+      setRecordingDuration(0);
       
       toast({
         title: "Success",
@@ -340,9 +326,9 @@ export default function HomePage() {
       stopRecording();
       setIsPrivate(false);
       setIsAnonymous(false);
-      setTimeLeft(180);
       setAudioBlob(null);
       setRantTitle('');
+      setRecordingDuration(0);
     }
   };
 
@@ -388,7 +374,7 @@ export default function HomePage() {
                 Post a Rant
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>Share Your Thoughts</DialogTitle>
               </DialogHeader>
@@ -416,23 +402,11 @@ export default function HomePage() {
                     </Select>
                   )}
 
-                  <div className="flex flex-col items-center gap-2">
-                    <button
-                      onClick={isRecording ? stopRecording : startRecording}
-                      className="text-foreground hover:text-foreground/80 transition-colors"
-                    >
-                      {isRecording ? (
-                        <MicOff className="h-8 w-8" />
-                      ) : (
-                        <Mic className="h-8 w-8" />
-                      )}
-                    </button>
-                    {isRecording && (
-                      <div className="text-sm text-muted-foreground">
-                        Time remaining: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                      </div>
-                    )}
-                  </div>
+                  <AIVoiceInput
+                    onStart={handleVoiceStart}
+                    onStop={handleVoiceStop}
+                    className="w-full"
+                  />
 
                   <div className="space-y-4 w-full">
                     <div className="flex items-center justify-between">
@@ -456,9 +430,9 @@ export default function HomePage() {
                     <Button
                       className="w-full"
                       onClick={handleSubmitRant}
-                      disabled={!isRecording && !audioBlob}
+                      disabled={!audioBlob}
                     >
-                      {isRecording ? 'Stop and Post' : 'Post Rant'}
+                      Post Rant
                     </Button>
                   </div>
                 </div>
