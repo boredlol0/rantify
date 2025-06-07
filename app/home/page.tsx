@@ -45,38 +45,36 @@ export default function HomePage() {
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const [rantTitle, setRantTitle] = useState('');
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const loadAudioDevices = async () => {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioInputs = devices.filter(device => device.kind === 'audioinput');
-        setAudioDevices(audioInputs);
-        if (audioInputs.length > 0) {
-          setSelectedDevice(audioInputs[0].deviceId);
-        }
-      } catch (error) {
-        console.error('Error loading audio devices:', error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Please ensure microphone permissions are granted"
-        });
+  // Only load audio devices when user opens the dialog and wants to record
+  const loadAudioDevices = async () => {
+    try {
+      // Request permission and get devices
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Stop the stream immediately - we just needed it for permissions
+      stream.getTracks().forEach(track => track.stop());
+      
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(device => device.kind === 'audioinput');
+      setAudioDevices(audioInputs);
+      if (audioInputs.length > 0 && !selectedDevice) {
+        setSelectedDevice(audioInputs[0].deviceId);
       }
-    };
-
-    loadAudioDevices();
-
-    navigator.mediaDevices.addEventListener('devicechange', loadAudioDevices);
-    return () => {
-      navigator.mediaDevices.removeEventListener('devicechange', loadAudioDevices);
-    };
-  }, [toast]);
+    } catch (error) {
+      console.error('Error loading audio devices:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please ensure microphone permissions are granted"
+      });
+    }
+  };
 
   const toggleTranscript = (rantId: string) => {
     setExpandedRants(prev => {
@@ -127,6 +125,12 @@ export default function HomePage() {
 
   const handleLogout = async () => {
     try {
+      // Clean up any active streams before logout
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        setCurrentStream(null);
+      }
+      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
@@ -147,11 +151,18 @@ export default function HomePage() {
 
   const startRecording = async () => {
     try {
+      // Load devices if not already loaded
+      if (audioDevices.length === 0) {
+        await loadAudioDevices();
+      }
+
       const constraints = {
         audio: selectedDevice ? { deviceId: { exact: selectedDevice } } : true
       };
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setCurrentStream(stream);
+      
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
 
@@ -162,6 +173,12 @@ export default function HomePage() {
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         setAudioBlob(audioBlob);
+        
+        // Clean up the stream when recording stops
+        if (currentStream) {
+          currentStream.getTracks().forEach(track => track.stop());
+          setCurrentStream(null);
+        }
       };
 
       mediaRecorderRef.current.start();
@@ -179,8 +196,14 @@ export default function HomePage() {
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
+    
+    // Clean up the current stream
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+      setCurrentStream(null);
+    }
+    
     setIsRecording(false);
   };
 
@@ -323,14 +346,33 @@ export default function HomePage() {
   const handleDialogChange = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
+      // Clean up when dialog closes
       stopRecording();
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        setCurrentStream(null);
+      }
       setIsPrivate(false);
       setIsAnonymous(false);
       setAudioBlob(null);
       setRantTitle('');
       setRecordingDuration(0);
+    } else {
+      // Load devices when dialog opens (only if user wants to record)
+      if (audioDevices.length === 0) {
+        loadAudioDevices();
+      }
     }
   };
+
+  // Clean up streams on component unmount
+  useEffect(() => {
+    return () => {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [currentStream]);
 
   if (!username) {
     return (
