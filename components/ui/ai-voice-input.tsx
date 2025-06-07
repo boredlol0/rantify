@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface AIVoiceInputProps {
@@ -21,50 +21,60 @@ export function AIVoiceInput({
   demoInterval = 3000,
   className
 }: AIVoiceInputProps) {
-  const [submitted, setSubmitted] = useState(false);
-  const [time, setTime] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(180); // 3 minutes countdown
+  const [isRecording, setIsRecording] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes in seconds
   const [isClient, setIsClient] = useState(false);
   const [isDemo, setIsDemo] = useState(demoMode);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  // Timer effect - runs when recording starts/stops
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-
-    if (submitted) {
-      onStart?.();
-      intervalId = setInterval(() => {
-        setTime((t) => t + 1);
-        setTimeLeft((t) => {
-          const newTime = t - 1;
-          // Auto-stop when countdown reaches 0
-          if (newTime <= 0) {
-            setSubmitted(false);
-            return 180; // Reset to 3 minutes
-          }
-          return newTime;
-        });
+    if (isRecording) {
+      startTimeRef.current = Date.now();
+      setTimeRemaining(180); // Reset to 3 minutes
+      
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const remaining = Math.max(0, 180 - elapsed);
+        
+        setTimeRemaining(remaining);
+        
+        // Auto-stop when time runs out
+        if (remaining === 0) {
+          handleStop();
+        }
       }, 1000);
     } else {
-      onStop?.(time);
-      setTime(0);
-      setTimeLeft(180); // Reset countdown when stopped
+      // Clear timer when not recording
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setTimeRemaining(180); // Reset to 3 minutes
     }
 
-    return () => clearInterval(intervalId);
-  }, [submitted, time, onStart, onStop]);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isRecording]);
 
+  // Demo mode effect
   useEffect(() => {
     if (!isDemo) return;
 
     let timeoutId: NodeJS.Timeout;
     const runAnimation = () => {
-      setSubmitted(true);
+      setIsRecording(true);
       timeoutId = setTimeout(() => {
-        setSubmitted(false);
+        setIsRecording(false);
         timeoutId = setTimeout(runAnimation, 1000);
       }, demoInterval);
     };
@@ -82,12 +92,27 @@ export function AIVoiceInput({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const handleStart = () => {
+    setIsRecording(true);
+    onStart?.();
+  };
+
+  const handleStop = () => {
+    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    setIsRecording(false);
+    onStop?.(elapsed);
+  };
+
   const handleClick = () => {
     if (isDemo) {
       setIsDemo(false);
-      setSubmitted(false);
+      setIsRecording(false);
     } else {
-      setSubmitted((prev) => !prev);
+      if (isRecording) {
+        handleStop();
+      } else {
+        handleStart();
+      }
     }
   };
 
@@ -97,16 +122,16 @@ export function AIVoiceInput({
         <button
           className={cn(
             "group w-16 h-16 rounded-xl flex items-center justify-center transition-colors",
-            submitted
+            isRecording
               ? "bg-none"
               : "bg-none hover:bg-black/10 dark:hover:bg-white/10"
           )}
           type="button"
           onClick={handleClick}
         >
-          {submitted ? (
+          {isRecording ? (
             <div
-              className="w-6 h-6 rounded-sm animate-spin bg-black dark:bg-white cursor-pointer pointer-events-auto"
+              className="w-6 h-6 rounded-sm animate-spin bg-red-500 cursor-pointer pointer-events-auto"
               style={{ animationDuration: "3s" }}
             />
           ) : (
@@ -117,12 +142,12 @@ export function AIVoiceInput({
         <span
           className={cn(
             "font-mono text-sm transition-opacity duration-300",
-            submitted
-              ? "text-red-500 dark:text-red-400" // Red color when recording (countdown)
+            isRecording
+              ? "text-red-500 font-semibold"
               : "text-black/30 dark:text-white/30"
           )}
         >
-          {submitted ? formatTime(timeLeft) : formatTime(180)}
+          {formatTime(timeRemaining)}
         </span>
 
         <div className="h-4 w-64 flex items-center justify-center gap-0.5">
@@ -131,12 +156,12 @@ export function AIVoiceInput({
               key={i}
               className={cn(
                 "w-0.5 rounded-full transition-all duration-300",
-                submitted
-                  ? "bg-black/50 dark:bg-white/50 animate-pulse"
+                isRecording
+                  ? "bg-red-500/50 animate-pulse"
                   : "bg-black/10 dark:bg-white/10 h-1"
               )}
               style={
-                submitted && isClient
+                isRecording && isClient
                   ? {
                       height: `${20 + Math.random() * 80}%`,
                       animationDelay: `${i * 0.05}s`,
@@ -148,7 +173,7 @@ export function AIVoiceInput({
         </div>
 
         <p className="h-4 text-xs text-black/70 dark:text-white/70">
-          {submitted ? "Recording..." : "Click to speak"}
+          {isRecording ? "Recording..." : "Click to speak"}
         </p>
       </div>
     </div>
